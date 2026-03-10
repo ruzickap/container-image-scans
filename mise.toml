@@ -1,0 +1,54 @@
+[tools]
+fnox = "latest"
+grype = "latest"
+node = "24"
+supabase = "latest"
+trivy = "latest"
+yq = "latest"
+
+[plugins]
+fnox-env = "https://github.com/jdx/mise-env-fnox"
+
+[env]
+_.fnox-env = { tools = true }
+
+# ── Web app tasks ────────────────────────────────────────────────
+
+[tasks."web:install"]
+description = "Install web app dependencies"
+run = "npm ci"
+dir = "web"
+
+[tasks."web:dev"]
+description = "Start Next.js development server"
+run = "npm run dev"
+dir = "web"
+depends = ["web:install"]
+
+[tasks."web:build"]
+description = "Build static site export to web/out/"
+run = "npm run build"
+dir = "web"
+depends = ["web:install"]
+sources = ["web/src/**", "web/package.json", "web/tsconfig.json", "web/next.config.js"]
+outputs = ["web/out/**"]
+
+# ── Shell script tasks ───────────────────────────────────────────
+
+[tasks.scan]
+description = "Scan all container images and print CVE summary"
+run = "bash scripts/scan-and-upload.sh scan"
+
+[tasks."scan:upload"]
+description = "Scan all images and upload results to Supabase (requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)"
+run = "bash scripts/scan-and-upload.sh upload"
+
+[tasks."db:push"]
+description = "Link Supabase project and push pending migrations (requires SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD)"
+run = "bash scripts/apply-schema.sh apply"
+
+# ── Aggregate tasks ──────────────────────────────────────────────
+
+[tasks.build]
+description = "Build the web app"
+depends = ["web:build"]

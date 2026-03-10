@@ -1,0 +1,9 @@
+# For detailed configuration reference documentation, visit:
+# https://supabase.com/docs/guides/local-development/cli/config
+project_id = "container-image-scans"
+
+[db]
+major_version = 17
+
+[db.migrations]
+enabled = true
