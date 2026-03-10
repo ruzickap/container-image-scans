@@ -12,10 +12,10 @@ CLI, yq, and all lint tools defined in `.mise.toml`.
 ### Next.js web app (`web/`)
 
 ```bash
-npm ci              # install dependencies (run from web/)
-npm run dev         # development server
-npm run build       # production build (static export to web/out/)
-npm run lint        # ESLint via next lint
+npm ci        # install dependencies (run from web/)
+npm run dev   # development server
+npm run build # production build (static export to web/out/)
+npm run lint  # ESLint via next lint
 ```
 
 There is no test suite yet. Verify changes by running `npm run build`
@@ -39,21 +39,21 @@ shfmt --case-indent --indent 2 --space-redirects \
 ### GitHub Actions workflows
 
 ```bash
-actionlint          # validate all workflow files
+actionlint                # validate all workflow files
 ```
 
 ### Markdown and links
 
 ```bash
-rumdl README.md AGENTS.md   # lint markdown (config in .rumdl.toml)
-lychee .                     # check links (config in lychee.toml)
+rumdl README.md AGENTS.md # lint markdown (config in .rumdl.toml)
+lychee .                  # check links (config in lychee.toml)
 ```
 
 ### Pre-commit hooks
 
 ```bash
 pre-commit install && pre-commit install --hook-type commit-msg
-pre-commit run --all-files   # run all hooks manually
+pre-commit run --all-files # run all hooks manually
 ```
 
 Hooks include: shellcheck, shfmt, prettier (excludes `*.md`),

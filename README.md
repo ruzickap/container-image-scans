@@ -149,19 +149,19 @@ VALUES (
 Configure these secrets in `Settings > Secrets and variables >
 Actions`:
 
-| Secret                           | Description                                  |
-|----------------------------------|----------------------------------------------|
-| `SUPABASE_URL`                   | Supabase project URL (`https://…supabase.co`)|
-| `SUPABASE_SERVICE_ROLE_KEY`      | Supabase **service_role** key (write access)  |
-| `SUPABASE_ACCESS_TOKEN`          | Supabase personal access token (CLI auth)     |
-| `SUPABASE_PROJECT_REF`           | Supabase project reference ID                 |
-| `SUPABASE_DB_PASSWORD`           | Database password (used by `supabase db push`)|
-| `NEXT_PUBLIC_SUPABASE_URL`       | Same as `SUPABASE_URL` (used at build time)   |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Supabase **anon** key (read-only, public)     |
-| `MY_RENOVATE_GITHUB_APP_ID`      | GitHub App ID for Renovate                    |
-| `MY_RENOVATE_GITHUB_PRIVATE_KEY` | GitHub App private key for Renovate           |
-| `MY_SLACK_BOT_TOKEN`             | Slack bot token for PR notifications          |
-| `MY_SLACK_CHANNEL_ID`            | Slack channel ID for PR notifications         |
+| Secret                           | Description                                    |
+|----------------------------------|------------------------------------------------|
+| `SUPABASE_URL`                   | Supabase project URL (`https://…supabase.co`)  |
+| `SUPABASE_SERVICE_ROLE_KEY`      | Supabase **service_role** key (write access)   |
+| `SUPABASE_ACCESS_TOKEN`          | Supabase personal access token (CLI auth)      |
+| `SUPABASE_PROJECT_REF`           | Supabase project reference ID                  |
+| `SUPABASE_DB_PASSWORD`           | Database password (used by `supabase db push`) |
+| `NEXT_PUBLIC_SUPABASE_URL`       | Same as `SUPABASE_URL` (used at build time)    |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Supabase **anon** key (read-only, public)      |
+| `MY_RENOVATE_GITHUB_APP_ID`      | GitHub App ID for Renovate                     |
+| `MY_RENOVATE_GITHUB_PRIVATE_KEY` | GitHub App private key for Renovate            |
+| `MY_SLACK_BOT_TOKEN`             | Slack bot token for PR notifications           |
+| `MY_SLACK_CHANNEL_ID`            | Slack channel ID for PR notifications          |
 
 The `service_role` key is used by the scan script to write data.
 The `anon` key is embedded in the static web app for read-only access
@@ -172,7 +172,7 @@ The `anon` key is embedded in the static web app for read-only access
 ### Web application
 
 ```bash
-mise install   # install Node.js, Supabase CLI, fnox, etc.
+mise install # install Node.js, Supabase CLI, fnox, etc.
 mise run web:dev
 ```
 
@@ -257,13 +257,13 @@ The image list is defined in `images.yml` at the repository root.
 
 ### CI / quality workflows
 
-| Workflow          | File                        | Trigger                          |
-|-------------------|-----------------------------|----------------------------------|
-| MegaLinter        | `mega-linter.yml`           | Push to non-main branches        |
-| CodeQL            | `codeql.yml`                | Push to `main`, PRs, weekly      |
-| OSSF Scorecards   | `scorecards.yml`            | Push to `main`, weekly           |
-| Commit Check      | `commit-check.yml`          | PRs to `main`                    |
-| Semantic PR Title | `semantic-pull-request.yml` | PRs (opened, edited, sync)       |
+| Workflow          | File                        | Trigger                     |
+|-------------------|-----------------------------|-----------------------------|
+| MegaLinter        | `mega-linter.yml`           | Push to non-main branches   |
+| CodeQL            | `codeql.yml`                | Push to `main`, PRs, weekly |
+| OSSF Scorecards   | `scorecards.yml`            | Push to `main`, weekly      |
+| Commit Check      | `commit-check.yml`          | PRs to `main`               |
+| Semantic PR Title | `semantic-pull-request.yml` | PRs (opened, edited, sync)  |
 
 ### Automation workflows
 
