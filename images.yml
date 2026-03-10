@@ -1,0 +1,45 @@
+---
+# Changes here must also be applied to the Supabase migration files
+# (supabase/migrations/), supabase/schema.sql, and README.md (image
+# table). Use AI to edit this file so that all dependent files are
+# updated automatically.
+- name: python
+  description: "Python images (latest stable: 3.14)"
+  images:
+    - docker.io/python:alpine
+    - gcr.io/distroless/python3-debian12:latest
+    - cgr.dev/chainguard/python:latest
+    - registry.access.redhat.com/ubi10/python-312-minimal:latest
+- name: node
+  description: "Node.js images (latest stable: 24)"
+  images:
+    - docker.io/node:24-alpine
+    - gcr.io/distroless/nodejs24-debian12:latest
+    - cgr.dev/chainguard/node:latest
+    - registry.access.redhat.com/ubi10/nodejs-24-minimal:latest
+- name: php
+  description: "PHP images (latest stable: 8.5)"
+  images:
+    - docker.io/php:alpine
+    - cgr.dev/chainguard/php:latest
+    - registry.access.redhat.com/ubi10/php-83:latest
+- name: nginx
+  description: "Nginx images (latest stable: 1.28)"
+  images:
+    - docker.io/nginx:alpine
+    - cgr.dev/chainguard/nginx:latest
+    - registry.access.redhat.com/ubi10/nginx-126:latest
+- name: ruby
+  description: "Ruby images (latest stable: 4.0)"
+  images:
+    - docker.io/ruby:alpine
+    - cgr.dev/chainguard/ruby:latest
+    - registry.access.redhat.com/ubi10/ruby-33:latest
+- name: base
+  description: "Base OS images"
+  images:
+    - docker.io/alpine:latest
+    - docker.io/debian:stable-slim
+    - docker.io/ubuntu:latest
+    - gcr.io/distroless/static:latest
+    - registry.access.redhat.com/ubi10-micro:latest
