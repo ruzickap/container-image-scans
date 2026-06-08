@@ -35,11 +35,11 @@ Real, present components: `scripts/` (bash scanners), `supabase/`
 get node 24, supabase CLI, trivy, grype, yq, and fnox at pinned
 versions (`mise.toml`).
 
-| Command              | What it does                                       |
-| -------------------- | -------------------------------------------------- |
-| `mise run scan`      | Scan all images, print CVE summary (no Supabase)   |
+| Command                | What it does                                     |
+|------------------------|--------------------------------------------------|
+| `mise run scan`        | Scan all images, print CVE summary (no Supabase) |
 | `mise run scan:upload` | Scan + upload to Supabase (needs env, see below) |
-| `mise run db:push`   | Link Supabase project + push migrations            |
+| `mise run db:push`     | Link Supabase project + push migrations          |
 
 `scan`/`scan:upload` wrap `scripts/scan-and-upload.sh`; `db:push` wraps
 `scripts/apply-schema.sh`. Scanning requires **Docker** running locally.
