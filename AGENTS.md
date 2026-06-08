@@ -1,179 +1,115 @@
-# AI Agent Guidelines
+# AGENTS.md
 
-Instructions for AI coding agents working on **container-image-scans**.
+Guidance for AI agents working on **container-image-scans**.
 
-## Build / Lint / Test Commands
+## What this repo is
 
-### Prerequisites
+Nightly job that scans container images (listed in `images.yml`) with
+**trivy** and **grype**, then stores SARIF + extracted CVEs in
+**Supabase** (PostgreSQL). A Next.js dashboard on GitHub Pages is
+**planned but not yet implemented** (see gotcha below).
 
-Run `mise install` once after cloning to install Node.js, Supabase
-CLI, yq, and all lint tools defined in `.mise.toml`.
+Real, present components: `scripts/` (bash scanners), `supabase/`
+(schema + migrations), `.github/workflows/` (CI + automation).
 
-### Next.js web app (`web/`)
+## Critical gotchas
 
-```bash
-npm ci        # install dependencies (run from web/)
-npm run dev   # development server
-npm run build # production build (static export to web/out/)
-npm run lint  # ESLint via next lint
-```
+- **`web/` does not exist yet.** The README, mise `web:*`/`build`
+  tasks, `deploy-web.yml`, and `web/.env.example` reference a Next.js
+  app that has never been committed. Do not assume it is there; the
+  `web:install`/`web:dev`/`web:build`/`build` mise tasks will fail
+  until `web/` is created. Treat any web-app instructions as the
+  intended design for new code, not existing code.
+- **`.pre-commit-config.yaml` is gitignored** (see `.gitignore`) and
+  symlinked locally. It is not in the repo; do not edit or rely on it
+  being present in CI.
+- **Lint runs only on non-main branches.** `mega-linter.yml` triggers
+  on `branches-ignore: [main]`, so push work to a branch to get
+  linting. It also extracts every `bash`/`shell`/`sh` code block from
+  changed `*.md` files and shell-checks them — keep markdown shell
+  snippets syntactically valid.
 
-There is no test suite yet. Verify changes by running `npm run build`
-in `web/` — the static export must succeed without errors.
+## Tooling and commands
 
-### Shell scripts (`scripts/`)
+`mise` is the task runner and tool manager. Run `mise install` once to
+get node 24, supabase CLI, trivy, grype, yq, and fnox at pinned
+versions (`mise.toml`).
 
-```bash
-# Lint (exclude SC2317 — unreachable command warning)
-shellcheck scripts/scan-and-upload.sh
+| Command              | What it does                                       |
+| -------------------- | -------------------------------------------------- |
+| `mise run scan`      | Scan all images, print CVE summary (no Supabase)   |
+| `mise run scan:upload` | Scan + upload to Supabase (needs env, see below) |
+| `mise run db:push`   | Link Supabase project + push migrations            |
 
-# Check formatting (2-space indent, space redirects)
-shfmt --case-indent --indent 2 --space-redirects \
-  --diff scripts/scan-and-upload.sh
+`scan`/`scan:upload` wrap `scripts/scan-and-upload.sh`; `db:push` wraps
+`scripts/apply-schema.sh`. Scanning requires **Docker** running locally.
 
-# Apply formatting in place
-shfmt --case-indent --indent 2 --space-redirects \
-  --write scripts/scan-and-upload.sh
-```
+Required env for uploads/migrations (auto-loaded from AWS Parameter
+Store via the `fnox-env` mise plugin when an AWS profile `my-aws` in
+`eu-central-1` is available, see `fnox.toml`):
 
-### GitHub Actions workflows
+- `scan:upload`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- `db:push`: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`,
+  `SUPABASE_DB_PASSWORD`
 
-```bash
-actionlint                # validate all workflow files
-```
+### Verifying changes (no test suite)
 
-### Markdown and links
+- Shell: `shellcheck scripts/*.sh` and
+  `shfmt --case-indent --indent 2 --space-redirects --diff scripts/`
+  (CI excludes `SC2317`).
+- Workflows: `actionlint` after editing any file in
+  `.github/workflows/`.
+- Markdown: `rumdl <file>` (config `.rumdl.toml`) and `lychee .`
+  (config `lychee.toml`) for links.
 
-```bash
-rumdl README.md AGENTS.md # lint markdown (config in .rumdl.toml)
-lychee .                  # check links (config in lychee.toml)
-```
+## Supabase data access (important)
 
-### Pre-commit hooks
+- **Writes use PostgREST + curl with the `service_role` key**, not the
+  supabase CLI. The CLI only links/pushes migrations; it cannot
+  insert or select rows. See `upload_scan`/`upload_cves` in
+  `scripts/scan-and-upload.sh`.
+- The web app (when built) reads with the **anon** key; anon is
+  SELECT-only and safe to ship in the static site (enforced by RLS).
+- CVEs are uploaded in **batches of 100** to avoid payload limits.
+- Tables: `image_groups`, `container_images`, `scans`, `cves`
+  (`scans` cascades to `cves`). Schema, RLS, grants, seed data, and a
+  `pg_cron` 1-year retention job live in
+  `supabase/migrations/20250301000000_initial_schema.sql`.
 
-```bash
-pre-commit install && pre-commit install --hook-type commit-msg
-pre-commit run --all-files # run all hooks manually
-```
+### Adding or changing images
 
-Hooks include: shellcheck, shfmt, prettier (excludes `*.md`),
-yamllint, actionlint, rumdl, codespell, gitleaks, keep-sorted,
-commitizen, and commit-check.
+`images.yml` is the source of truth, but it is **not auto-synced**.
+Changing it requires matching edits to `supabase/migrations/`,
+`supabase/schema.sql`, and the image table in `README.md` (the header
+comment in `images.yml` says the same). Migrations are append-only;
+add a new timestamped file rather than editing applied ones.
 
-## Project Structure
+## Conventions specific to this repo
 
-| Path                  | Purpose                               |
-|-----------------------|---------------------------------------|
-| `web/`                | Next.js 15 dashboard (static export)  |
-| `web/src/lib/`        | Supabase client, types, data fetchers |
-| `web/src/components/` | React components (client-side)        |
-| `web/src/app/`        | Next.js app router pages and layout   |
-| `scripts/`            | Bash scripts for CI                   |
-| `supabase/`           | Database schema and seed data         |
-| `.github/workflows/`  | GitHub Actions workflow files         |
+- **Bash** (`scripts/`): `#!/usr/bin/env bash`, `set -euo pipefail`,
+  UPPERCASE vars (including `local`), always quote `"${VAR}"`,
+  `function_name() {}` form, `die()` for fatal errors, `|| true` for
+  non-fatal commands, `# ── section ──` banner comments.
+- **SQL** (`supabase/`): start files with `/* tsqllint-disable */`,
+  UPPERCASE keywords, snake_case identifiers, `bigint GENERATED ALWAYS
+  AS IDENTITY PRIMARY KEY`, RLS on every table (public `SELECT`,
+  service-role `INSERT`), `ON CONFLICT ... DO NOTHING` for idempotent
+  seeds.
+- **Workflows**: runner `ubuntu-24.04-arm`; install tools via
+  `jdx/mise-action` (not Homebrew or `setup-node`); pin actions to
+  full SHA with a `# vX.Y.Z` comment; `permissions: read-all` unless a
+  job needs more.
+- **General**: 2-space indent everywhere; wrap markdown at 80 cols
+  (code blocks exempt); trailing newline; no trailing whitespace.
 
-## Code Style
+## Git / PR
 
-### General
-
-- **Indentation**: 2 spaces everywhere (TS, CSS, YAML, SQL, bash).
-- **Line width**: Wrap lines at 80 characters for markdown files.
-- **Trailing newline**: All files end with a single newline.
-- **No trailing whitespace**.
-
-### TypeScript / React (`web/src/`)
-
-- **Formatter**: Prettier with default settings and
-  `--html-whitespace-sensitivity=ignore`.
-- **Strict mode**: `tsconfig.json` has `strict: true`.
-- **Imports**: Use `@/` path alias for internal imports
-  (e.g. `@/lib/supabase`, `@/components/HistoryCharts`).
-  - External packages first, then internal imports, separated by
-    a blank line.
-  - Use `import type { ... }` when importing only types.
-- **Client components**: Start with `"use client";` on line 1.
-- **Component exports**: Named exports (`export function Foo`).
-  Exception: `page.tsx` and `layout.tsx` use `export default`.
-- **Interface naming**: `Props` for component prop interfaces.
-  PascalCase for domain types (`ImageGroup`, `ContainerImage`,
-  `Scan`, `Cve`).
-- **State management**: React hooks only (`useState`, `useMemo`,
-  `useCallback`, `useEffect`). No external state libraries.
-- **Data fetching**: All Supabase queries go through functions in
-  `web/src/lib/supabase.ts`. Components never use `supabase`
-  directly.
-- **Error handling**: Wrap async calls in try/catch, log with
-  `console.error("Failed to <action>:", err)`, set loading state
-  in a `finally` block.
-- **Nullish coalescing**: Prefer `??` over `||`. Use `data ?? []`
-  after Supabase queries.
-- **CSS**: Use CSS custom properties from `globals.css`
-  (`var(--bg)`, `var(--text-muted)`, `var(--critical)`, etc.).
-  Prefer CSS classes over inline styles.
-
-### Bash (`scripts/`)
-
-- **Shebang**: `#!/usr/bin/env bash`
-- **Strict mode**: Always `set -euo pipefail`
-- **Variables**: All UPPERCASE (`SARIF_FILE`, `SCAN_ID`). Local
-  variables also UPPERCASE, declared with `local`.
-- **Quoting**: Always double-quote expansions (`"${VAR}"`).
-- **Formatting**: `shfmt --case-indent --indent 2
-  --space-redirects`.
-- **Continuation lines**: 2-space indent from command start, not
-  aligned to opening parens.
-- **Functions**: `function_name() { ... }` form (no `function`
-  keyword). Place helpers before main logic.
-- **Error handling**: `die()` helper for fatal errors. `|| true`
-  for non-fatal commands.
-- **Section comments**: `# ── section name ──...` banner style.
-
-### SQL (`supabase/`)
-
-- **Keywords**: UPPERCASE (`CREATE TABLE`, `NOT NULL`, `DEFAULT`).
-- **Identifiers**: lowercase snake_case (`image_groups`,
-  `cve_count`).
-- **Primary keys**: `bigint GENERATED ALWAYS AS IDENTITY
-  PRIMARY KEY`.
-- **Foreign keys**: Inline with `ON DELETE CASCADE`.
-- **Indexes**: Separate `CREATE INDEX IF NOT EXISTS` statements.
-- **RLS**: Enable on all tables. Public read (`FOR SELECT USING
-  (true)`), service role write (`FOR INSERT WITH CHECK (true)`).
-- **Seed data**: `ON CONFLICT ... DO NOTHING` for idempotency.
-
-### YAML (`.github/workflows/`)
-
-- **Document start**: Begin with `---`.
-- **Indentation**: 2 spaces.
-- **Strings**: Double quotes for cron expressions and strings
-  with special characters.
-
-## GitHub Actions
-
-- **Runner**: `ubuntu-24.04-arm` (arm64).
-- **Permissions**: Minimal. Prefer `read-all` for scan workflows.
-  Only `pages: write` and `id-token: write` for deploy.
-- **Pin actions**: Always pin to full SHA commit hashes, not tags.
-  Include a version comment (e.g. `# v6.0.2`).
-- **Tool installation**: Use `jdx/mise-action` to install tools
-  from `.mise.toml`. Do not use Homebrew or `actions/setup-node`.
-
-## Version Control
-
-- **Conventional commits**: `<type>: <description>` with types
-  `feat`, `fix`, `docs`, `chore`, `refactor`, `ci`, `build`, etc.
-- **Subject line**: Imperative mood, lowercase, no period, max 72
-  characters.
-- **Branches**: `<type>/<description>` (e.g. `feat/add-nodejs-group`,
-  `fix/chart-render-bug`).
-- **Pull requests**: Create as draft. Title follows conventional
-  commit format.
-
-## Supabase Data Access
-
-- **Web app** (read): `anon` key via `@supabase/supabase-js`.
-- **Scan script** (write): `service_role` key via curl to the
-  PostgREST API (`$SUPABASE_URL/rest/v1/`). The `supabase` CLI
-  cannot insert or select data.
-- **Batch uploads**: Upload CVEs in batches of 100 to avoid
-  payload limits.
+- Conventional commits `<type>: <description>`, imperative, lowercase,
+  no period, subject and body lines ≤ 72 chars (validated by
+  `commit-check`).
+- Branches: `<type>/<description>` per Conventional Branch
+  (`feature/`, `fix/`, `chore/`, ...).
+- Open PRs as **draft**; title must be a valid conventional-commit
+  (validated by `semantic-pull-request`).
+- Renovate and Release Please are automated; do not hand-edit
+  `CHANGELOG.md` (it is excluded from all linters).
