@@ -18,3 +18,4 @@ supabase/.temp/
 
 # pre-commit configuration file
 .pre-commit-config.yaml
+*.tsbuildinfo

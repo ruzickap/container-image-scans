@@ -22,6 +22,8 @@ BASH_SHFMT_ARGUMENTS: --case-indent --indent 2 --space-redirects
 # Disable linters
 DISABLE_LINTERS:
   - SPELL_CSPELL # Spell checking disabled - prone to false positives
+  - JAVASCRIPT_STANDARD # Conflicts with prettier (quotes, commas)
+  - TYPESCRIPT_STANDARD # Conflicts with prettier; needs root tsconfig
 
 # Fail the build if a required linter is missing from the Docker flavor
 FAIL_IF_MISSING_LINTER_IN_FLAVOR: true
