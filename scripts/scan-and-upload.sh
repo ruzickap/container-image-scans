@@ -217,7 +217,7 @@ upload_cves() {
         jq ".[$OFFSET:$((OFFSET + BATCH_SIZE))]")
 
       local RESP_BODY
-      RESP_BODY=$(echo "${BATCH}" | curl -sf \
+      RESP_BODY=$(echo "${BATCH}" | curl -sS --fail-with-body \
         -H "${AUTH_HEADER}" \
         -H "${APIKEY_HEADER}" \
         -H "Content-Type: application/json" \
@@ -260,7 +260,7 @@ upload_scan() {
     }')
 
   local RESP
-  RESP=$(echo "${PAYLOAD}" | curl -sf \
+  RESP=$(echo "${PAYLOAD}" | curl -sS --fail-with-body \
     -H "${AUTH_HEADER}" \
     -H "${APIKEY_HEADER}" \
     -H "Content-Type: application/json" \
@@ -283,12 +283,12 @@ if [[ "${UPLOAD}" == "true" ]]; then
   APIKEY_HEADER="apikey: ${SUPABASE_SERVICE_ROLE_KEY}"
 
   # Build a lookup of image -> database id from Supabase
-  IMAGES_DB_JSON=$(curl -sf \
+  IMAGES_DB_JSON=$(curl -sS --fail-with-body \
     -H "${AUTH_HEADER}" \
     -H "${APIKEY_HEADER}" \
     -H "Content-Type: application/json" \
     "${API}/container_images?select=id,image" 2>&1) ||
-    die "Failed to fetch image list from Supabase (${SUPABASE_URL}). Is the schema applied? Run: mise run db:push"
+    die "Failed to fetch image list from Supabase (${SUPABASE_URL}): ${IMAGES_DB_JSON}. Is the schema applied? Run: mise run db:push"
 fi
 
 # ── update vulnerability databases ───────────────────────────────
