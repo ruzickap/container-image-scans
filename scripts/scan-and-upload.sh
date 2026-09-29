@@ -63,6 +63,15 @@ require_var() {
   [[ -n "${!1:-}" ]] || die "Environment variable $1 is not set"
 }
 
+# Supabase's Cloudflare WAF blocks CVE descriptions that look like
+# attacks (e.g. "fetch('http://...')"). These chars only occur inside
+# JSON strings, so \u-escaping them keeps the data identical.
+waf_escape() {
+  sed -e 's#/#\\u002f#g' -e "s#'#\\\\u0027#g" \
+    -e 's#(#\\u0028#g' -e 's#)#\\u0029#g' \
+    -e 's#<#\\u003c#g' -e 's#>#\\u003e#g'
+}
+
 # ── function: extract CVEs from SARIF ───────────────────────────
 # Outputs a JSON array of CVE objects to stdout.
 # When SCAN_ID is 0 the scan_id field is omitted (local mode).
@@ -217,7 +226,7 @@ upload_cves() {
         jq ".[$OFFSET:$((OFFSET + BATCH_SIZE))]")
 
       local RESP_BODY
-      RESP_BODY=$(echo "${BATCH}" | curl -sS --fail-with-body \
+      RESP_BODY=$(echo "${BATCH}" | waf_escape | curl -sS --fail-with-body \
         -H "${AUTH_HEADER}" \
         -H "${APIKEY_HEADER}" \
         -H "Content-Type: application/json" \
@@ -260,7 +269,7 @@ upload_scan() {
     }')
 
   local RESP
-  RESP=$(echo "${PAYLOAD}" | curl -sS --fail-with-body \
+  RESP=$(echo "${PAYLOAD}" | waf_escape | curl -sS --fail-with-body \
     -H "${AUTH_HEADER}" \
     -H "${APIKEY_HEADER}" \
     -H "Content-Type: application/json" \
