@@ -6,20 +6,21 @@ Guidance for AI agents working on **container-image-scans**.
 
 Nightly job that scans container images (listed in `images.yml`) with
 **trivy** and **grype**, then stores SARIF + extracted CVEs in
-**Supabase** (PostgreSQL). A Next.js dashboard on GitHub Pages is
-**planned but not yet implemented** (see gotcha below).
+**Supabase** (PostgreSQL). A static Next.js dashboard in `web/` is
+deployed to GitHub Pages by `deploy-web.yml`.
 
-Real, present components: `scripts/` (bash scanners), `supabase/`
-(schema + migrations), `.github/workflows/` (CI + automation).
+Components: `scripts/` (bash scanners), `supabase/` (schema +
+migrations), `web/` (dashboard), `.github/workflows/` (CI +
+automation).
 
 ## Critical gotchas
 
-- **`web/` does not exist yet.** The README, mise `web:*`/`build`
-  tasks, `deploy-web.yml`, and `web/.env.example` reference a Next.js
-  app that has never been committed. Do not assume it is there; the
-  `web:install`/`web:dev`/`web:build`/`build` mise tasks will fail
-  until `web/` is created. Treat any web-app instructions as the
-  intended design for new code, not existing code.
+- **Supabase caps responses at 1000 rows.** Web queries must page
+  with `fetchAll()` in `web/src/lib/supabase.ts` and end their
+  `.order()` chain with `id`.
+- **Cloudflare WAF fronts Supabase.** Upload bodies go through
+  `waf_escape()` in `scripts/scan-and-upload.sh`; CVE text like
+  `fetch('http://...')` otherwise gets a 403 HTML page.
 - **`.pre-commit-config.yaml` is gitignored** (see `.gitignore`) and
   symlinked locally. It is not in the repo; do not edit or rely on it
   being present in CI.
@@ -68,7 +69,7 @@ Store via the `fnox-env` mise plugin when an AWS profile `my-aws` in
   supabase CLI. The CLI only links/pushes migrations; it cannot
   insert or select rows. See `upload_scan`/`upload_cves` in
   `scripts/scan-and-upload.sh`.
-- The web app (when built) reads with the **anon** key; anon is
+- The web app (`web/`) reads with the **anon** key; anon is
   SELECT-only and safe to ship in the static site (enforced by RLS).
 - CVEs are uploaded in **batches of 100** to avoid payload limits.
 - Tables: `image_groups`, `container_images`, `scans`, `cves`
