@@ -21,7 +21,7 @@ env:
 jobs:
   nightly-scans:
     name: Scan container images
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 60
 
     steps:
@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
 
       - name: Install tools via mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
 
       - name: Run scans and upload results
         run: mise run scan:upload
