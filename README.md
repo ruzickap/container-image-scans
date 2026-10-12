@@ -78,9 +78,10 @@ automatically.
 After cloning the repository, run `mise install` to install all
 required tools at the versions defined in `.mise.toml`.
 
-For local development the
-[fnox](https://github.com/jdx/mise-env-fnox) mise plugin fetches
-secrets from AWS Parameter Store (configured in `fnox.toml`). This
+For local development [fnox](https://fnox.jdx.dev/) fetches secrets
+from AWS Parameter Store (configured in `fnox.toml`). The mise tasks
+that need them (`scan:upload`, `db:push`, `web:dev`, `web:build`) wrap
+their commands in `fnox exec --`. This
 requires an AWS profile named `my-aws` with access to the
 `/github/ruzickap/container-image-scans/actions-secrets/` path in
 the `eu-central-1` region.
@@ -105,8 +106,8 @@ export SUPABASE_DB_PASSWORD="your-db-password"
 mise run db:push
 ```
 
-When the fnox-env plugin is configured the three variables above are
-populated automatically from AWS Parameter Store.
+When `fnox.toml` can be resolved, `fnox exec` populates the three
+variables above automatically from AWS Parameter Store.
 
 Alternatively, apply the schema manually via the **SQL Editor** in
 the Supabase Dashboard:
@@ -212,7 +213,7 @@ mise run db:push
 
 This requires `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, and
 `SUPABASE_DB_PASSWORD` in the environment (or provided automatically
-by the fnox-env plugin from AWS Parameter Store).
+by `fnox exec` from AWS Parameter Store).
 
 ### Available mise tasks
 

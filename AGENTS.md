@@ -44,9 +44,11 @@ versions (`mise.toml`).
 `scan`/`scan:upload` wrap `scripts/scan-and-upload.sh`; `db:push` wraps
 `scripts/apply-schema.sh`. Scanning requires **Docker** running locally.
 
-Required env for uploads/migrations (auto-loaded from AWS Parameter
-Store via the `fnox-env` mise plugin when an AWS profile `my-aws` in
-`eu-central-1` is available, see `fnox.toml`):
+Required env for uploads/migrations (loaded from AWS Parameter Store
+by `fnox exec`, which wraps the `scan:upload`, `db:push`, `web:dev`,
+and `web:build` tasks, when an AWS profile `my-aws` in `eu-central-1`
+is available, see `fnox.toml`; variables already set in the
+environment, e.g. in CI, are used when fnox cannot resolve them):
 
 - `scan:upload`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 - `db:push`: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`,
