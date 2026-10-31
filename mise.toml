@@ -1,7 +1,7 @@
 [tools]
 fnox = "latest"
 grype = "latest"
-node = "24"
+node = "26"
 supabase = "latest"
 trivy = "latest"
 yq = "latest"
