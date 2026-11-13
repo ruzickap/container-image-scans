@@ -150,17 +150,17 @@ VALUES (
 Configure these secrets in `Settings > Secrets and variables >
 Actions`:
 
-| Secret                           | Description                                    |
-|----------------------------------|------------------------------------------------|
-| `SUPABASE_URL`                   | Supabase project URL (`https://…supabase.co`)  |
-| `SUPABASE_SERVICE_ROLE_KEY`      | Supabase **service_role** key (write access)   |
-| `SUPABASE_ACCESS_TOKEN`          | Supabase personal access token (CLI auth)      |
-| `SUPABASE_PROJECT_REF`           | Supabase project reference ID                  |
-| `SUPABASE_DB_PASSWORD`           | Database password (used by `supabase db push`) |
-| `NEXT_PUBLIC_SUPABASE_URL`       | Same as `SUPABASE_URL` (used at build time)    |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Supabase **anon** key (read-only, public)      |
-| `MY_SLACK_BOT_TOKEN`             | Slack bot token for PR notifications           |
-| `MY_SLACK_CHANNEL_ID`            | Slack channel ID for PR notifications          |
+| Secret                          | Description                                    |
+|---------------------------------|------------------------------------------------|
+| `SUPABASE_URL`                  | Supabase project URL (`https://…supabase.co`)  |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Supabase **service_role** key (write access)   |
+| `SUPABASE_ACCESS_TOKEN`         | Supabase personal access token (CLI auth)      |
+| `SUPABASE_PROJECT_REF`          | Supabase project reference ID                  |
+| `SUPABASE_DB_PASSWORD`          | Database password (used by `supabase db push`) |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Same as `SUPABASE_URL` (used at build time)    |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase **anon** key (read-only, public)      |
+| `MY_SLACK_BOT_TOKEN`            | Slack bot token for PR notifications           |
+| `MY_SLACK_CHANNEL_ID`           | Slack channel ID for PR notifications          |
 
 The `service_role` key is used by the scan script to write data.
 The `anon` key is embedded in the static web app for read-only access
