@@ -1,10 +1,10 @@
 [tools]
-fnox = "latest"
-grype = "latest"
-node = "26"
-supabase = "latest"
-trivy = "latest"
-yq = "latest"
+fnox = "1.48.0"
+grype = "0.121.3"
+node = "26.13.1"
+supabase = "3.1.0"
+trivy = "0.76.2"
+yq = "4.54.3"
 
 # ── Web app tasks ────────────────────────────────────────────────
 
