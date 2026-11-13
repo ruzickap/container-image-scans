@@ -5,10 +5,10 @@ env = "exec"
 ps = { type = "aws-ps", profile = "my-aws", region = "eu-central-1" }
 
 [secrets]
-NEXT_PUBLIC_SUPABASE_ANON_KEY = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/NEXT_PUBLIC_SUPABASE_ANON_KEY" }
-NEXT_PUBLIC_SUPABASE_URL = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/NEXT_PUBLIC_SUPABASE_URL" }
-SUPABASE_ACCESS_TOKEN = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_ACCESS_TOKEN" }
-SUPABASE_DB_PASSWORD = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_DB_PASSWORD" }
-SUPABASE_PROJECT_REF = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_PROJECT_REF" }
-SUPABASE_SERVICE_ROLE_KEY = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_SERVICE_ROLE_KEY" }
-SUPABASE_URL = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_URL" }
+NEXT_PUBLIC_SUPABASE_ANON_KEY = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/NEXT_PUBLIC_SUPABASE_ANON_KEY", if_missing = "error" }
+NEXT_PUBLIC_SUPABASE_URL = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/NEXT_PUBLIC_SUPABASE_URL", if_missing = "error" }
+SUPABASE_ACCESS_TOKEN = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_ACCESS_TOKEN", if_missing = "error" }
+SUPABASE_DB_PASSWORD = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_DB_PASSWORD", if_missing = "error" }
+SUPABASE_PROJECT_REF = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_PROJECT_REF", if_missing = "error" }
+SUPABASE_SERVICE_ROLE_KEY = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_SERVICE_ROLE_KEY", if_missing = "error" }
+SUPABASE_URL = { provider = "ps", value = "/github/ruzickap/container-image-scans/actions-secrets/SUPABASE_URL", if_missing = "error" }

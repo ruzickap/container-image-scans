@@ -159,8 +159,6 @@ Actions`:
 | `SUPABASE_DB_PASSWORD`           | Database password (used by `supabase db push`) |
 | `NEXT_PUBLIC_SUPABASE_URL`       | Same as `SUPABASE_URL` (used at build time)    |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Supabase **anon** key (read-only, public)      |
-| `MY_RENOVATE_GITHUB_APP_ID`      | GitHub App ID for Renovate                     |
-| `MY_RENOVATE_GITHUB_PRIVATE_KEY` | GitHub App private key for Renovate            |
 | `MY_SLACK_BOT_TOKEN`             | Slack bot token for PR notifications           |
 | `MY_SLACK_CHANNEL_ID`            | Slack channel ID for PR notifications          |
 
