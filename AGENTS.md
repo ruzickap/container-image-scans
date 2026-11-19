@@ -47,8 +47,7 @@ versions (`mise.toml`).
 Required env for uploads/migrations (loaded from AWS Parameter Store
 by `fnox exec`, which wraps the `scan:upload`, `db:push`, `web:dev`,
 and `web:build` tasks, when an AWS profile `my-aws` in `eu-central-1`
-is available, see `fnox.toml`; variables already set in the
-environment, e.g. in CI, are used when fnox cannot resolve them):
+is available, see `fnox.toml`; every secret is mandatory, CI included):
 
 - `scan:upload`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 - `db:push`: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`,
