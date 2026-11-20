@@ -315,10 +315,42 @@ def test_scan_skips_secret_scanning_and_db_updates(
 
     monkeypatch.setattr(sau, "run", fake_run)
 
-    assert not sau.scan("alpine:latest", "trivy", tmp_path)
-    assert not sau.scan("alpine:latest", "grype", tmp_path)
+    sau.scan("alpine:latest", "trivy", tmp_path)
+    sau.scan("alpine:latest", "grype", tmp_path)
     assert {"--scanners", "vuln", "--skip-db-update"} <= set(commands[0])
     assert commands[1][:3] == ["grype", "alpine:latest", "--by-cve"]
+
+
+@pytest.mark.parametrize(
+    ("scanner", "report", "expected"),
+    [
+        # Valid reports without vulnerabilities: 0 CVEs
+        ("trivy", '{"SchemaVersion": 2, "Results": []}', []),
+        ("grype", '{"matches": []}', []),
+        # Missing, invalid or foreign reports: a failed scan, not 0 CVEs
+        ("trivy", None, None),
+        ("trivy", "not json", None),
+        ("trivy", '{"matches": []}', None),
+        ("grype", '{"SchemaVersion": 2}', None),
+    ],
+)
+def test_scan_rejects_invalid_reports(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    scanner: str,
+    report: str | None,
+    expected: list[sau.CVE] | None,
+) -> None:
+    """A scan that exits 0 without a valid report is a failed scan."""
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        if report is not None:
+            (tmp_path / f"{scanner}.json").write_text(report, encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(sau, "run", fake_run)
+
+    assert sau.scan("alpine:latest", scanner, tmp_path) == expected
 
 
 def fake_main(

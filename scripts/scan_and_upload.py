@@ -256,6 +256,8 @@ def scan(image: str, scanner: str, workdir: Path) -> list[CVE] | None:
     """Scan one image with one scanner (None when the scan failed).
 
     The scanners exit 0 when they find CVEs - a non-zero exit is a failure.
+    A missing or invalid report is a failure too, not "0 CVEs": every trivy
+    report has "SchemaVersion", every grype report "matches" (also empty).
     """
     report = workdir / f"{scanner}.json"
     if scanner == "trivy":
@@ -270,11 +272,12 @@ def scan(image: str, scanner: str, workdir: Path) -> list[CVE] | None:
         print(result.stdout + result.stderr, file=sys.stderr)
         return None
     report_data = read_report(report)
-    return (
-        trivy_cves(report_data)
-        if scanner == "trivy"
-        else grype_cves(report_data)
-    )
+    if scanner == "trivy" and "SchemaVersion" in report_data:
+        return trivy_cves(report_data)
+    if scanner == "grype" and "matches" in report_data:
+        return grype_cves(report_data)
+    print(f"  {scanner} wrote no valid report: {report}", file=sys.stderr)
+    return None
 
 
 def summary_line(scanner: str, cves: list[CVE] | None) -> str:
