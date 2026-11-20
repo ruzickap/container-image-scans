@@ -311,7 +311,6 @@ container-image-scans/
 |   +-- svelte.config.js
 |   +-- tsconfig*.json
 |   +-- vite.config.ts                # Vite + Vitest configuration
-+-- .bandit.yml                       # Bandit config (assert in tests)
 +-- .checkov.yml                      # Checkov skip-check config
 +-- .gitignore
 +-- .mega-linter.yml                  # MegaLinter configuration

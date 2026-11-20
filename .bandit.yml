@@ -1,4 +1,0 @@
----
-# Bandit (MegaLinter PYTHON_BANDIT): pytest uses assert in the tests
-assert_used:
-  skips: ["*/test_*.py"]
