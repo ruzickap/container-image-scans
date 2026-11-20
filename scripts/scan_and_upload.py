@@ -10,6 +10,7 @@ variables:
   AWS_REGION      Region of the table (default: eu-central-1)
   DYNAMODB_TABLE  Table name (default: container-image-scans)
   IMAGES_FILE     Image list (default: images.yml in the repository root)
+  GITHUB_STEP_SUMMARY  Markdown summary file (set by GitHub Actions)
 """
 
 import argparse
@@ -314,6 +315,31 @@ def print_summary(rows: list[tuple[str, str, dict[str, int]]]) -> None:
         )
 
 
+def write_step_summary(
+    rows: list[tuple[str, str, dict[str, int]]], failures: list[str]
+) -> None:
+    """Write the summary as Markdown to the GitHub Actions job summary."""
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not path:
+        return
+    names = ("total", *(severity.lower() for severity in SEVERITIES))
+    lines = [
+        "## Container image scans\n",
+        "| Image | Scanner | Total | Critical | High | Medium | Low |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        *(
+            f"| `{image}` | {scanner} | "
+            + " | ".join(str(counts[name]) for name in names)
+            + " |"
+            for image, scanner, counts in rows
+        ),
+        *(["", "### Failed", ""] if failures else []),
+        *(f"- ❌ {failure}" for failure in failures),
+    ]
+    with open(path, "a", encoding="utf-8") as summary:
+        summary.write("\n".join(lines) + "\n")
+
+
 def open_table() -> Any:
     """The DynamoDB table - fails early when credentials or table are wrong.
 
@@ -419,6 +445,7 @@ def main() -> int:
             run(["docker", "rmi", image.image])
 
     print_summary(rows)
+    write_step_summary(rows, failures)
     if failures:
         print("\n" + "\n".join(f"❌ Failed: {f}" for f in failures))
         return 1

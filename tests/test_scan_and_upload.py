@@ -419,6 +419,28 @@ def test_main_uploads_good_scans_and_reports_failures(
     assert "❌ Failed: half:latest (grype)" in output
 
 
+def test_main_writes_the_github_step_summary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """In GitHub Actions the results also go to the job summary."""
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    fake_main(
+        monkeypatch,
+        tmp_path,
+        FakeTable(),
+        failing=("docker pull broken:latest",),
+    )
+
+    assert sau.main() == 1
+
+    text = summary.read_text(encoding="utf-8")
+    assert "| `good:latest` | trivy | " in text
+    assert "| `half:latest` | trivy | " in text
+    assert "- ❌ broken:latest (pull)" in text
+    assert "- ❌ half:latest (grype)" in text
+
+
 def test_main_stops_when_a_database_update_fails(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

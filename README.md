@@ -247,6 +247,8 @@ credentials, DynamoDB Local accepts any).
 - Pulls each image, scans it with both scanners, writes the results to
   DynamoDB (`mise run scan:upload`), and removes the image to free the
   runner disk (CI only)
+- Writes the CVE counts of all scans and the failed images to the job
+  summary (`GITHUB_STEP_SUMMARY`)
 
 #### Scanner Tests (`.github/workflows/scanner-tests.yml`)
 
