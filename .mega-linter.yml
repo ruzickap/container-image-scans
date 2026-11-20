@@ -51,9 +51,8 @@ MARKDOWN_RUMDL_FILTER_REGEX_EXCLUDE: CHANGELOG\.md
 # Disable the MegaLinter ASCII art graphic in output
 PRINT_ALPACA: false
 
-# Bandit (security scanner): skip B101 (assert_used) - pytest tests are built on assert,
-# scripts/ does not use assert
-PYTHON_BANDIT_ARGUMENTS: --skip B101
+# Bandit reads [tool.bandit] from pyproject.toml
+PYTHON_BANDIT_CONFIG_FILE: pyproject.toml
 
 # Use ruff as the default Python style (faster Rust-based alternative)
 PYTHON_DEFAULT_STYLE: ruff

@@ -33,6 +33,11 @@ profile = "black"
 line_length = 79
 known_first_party = ["scan_and_upload"]
 
+[tool.bandit]
+# B101 (assert_used): pytest tests are built on assert, scripts/ does not
+# use assert
+skips = ["B101"]
+
 [tool.mypy]
 ignore_missing_imports = true
 

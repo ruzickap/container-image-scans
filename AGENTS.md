@@ -69,8 +69,8 @@ write to the table: GitHub Actions assume the
   DynamoDB table, no Docker / AWS). Lint like MegaLinter (without the
   project dependencies): `uvx ruff check`, `uvx ruff format --check`,
   `uvx isort --check-only`, `uvx flake8`, `uvx pylint`, `uvx mypy`,
-  `uvx pyright`, `uvx bandit --skip B101` on `scripts/` and `tests/`
-  (`PYTHON_BANDIT_ARGUMENTS` - pytest tests use `assert`).
+  `uvx pyright`, `uvx bandit -c pyproject.toml` on `scripts/` and `tests/`
+  (`[tool.bandit]` skips B101 - pytest tests use `assert`).
   CI runs the tests on every branch push touching the scanner
   (`scanner-tests.yml`, not a required check).
 - Uploads without touching AWS: run
