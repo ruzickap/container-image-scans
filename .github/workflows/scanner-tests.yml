@@ -1,0 +1,41 @@
+---
+name: scanner-tests
+
+# Every push that changes the scanner (or images.yml) is tested - like web-tests.yml for the dashboard
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - .github/workflows/scanner-tests.yml
+      - .python-version
+      - images.yml
+      - mise.toml
+      - pyproject.toml
+      - scripts/**
+      - tests/**
+      - uv.lock
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  scanner-tests:
+    name: Test the scanner
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read # Required to checkout repository.
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv via mise
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          install_args: uv
+
+      - name: Run the tests
+        run: mise run scan:test

@@ -1,0 +1,39 @@
+---
+name: web-tests
+
+# Every push that changes the dashboard is tested (PR and Renovate branches) - main deploys the tested code
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - .github/workflows/web-tests.yml
+      - mise.toml
+      - web/**
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  web-tests:
+    name: Test and build the dashboard
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read # Required to checkout repository.
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Bun via mise
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          install_args: bun
+
+      - name: Run the tests
+        run: mise run web:test
+
+      - name: Type-check and build the dashboard
+        run: mise run web:build

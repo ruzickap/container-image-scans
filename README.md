@@ -2,15 +2,17 @@
 
 Compare CVE findings across container images using
 [trivy](https://trivy.dev/) and [grype](https://github.com/anchore/grype)
-scanners. Results are stored in [Supabase](https://supabase.com/) and
-visualised in a Next.js dashboard deployed to GitHub Pages.
+scanners. Results are stored in [Amazon DynamoDB](https://aws.amazon.com/dynamodb/)
+and shown by a dashboard (Vite + Svelte) on GitHub Pages:
+`https://ruzickap.github.io/container-image-scans/`.
 
 ## Table of Contents
 
 - [Architecture](#architecture)
 - [Container Images](#container-images)
 - [Prerequisites](#prerequisites)
-- [Supabase Setup](#supabase-setup)
+- [AWS Infrastructure](#aws-infrastructure)
+- [Data Model](#data-model)
 - [Local Development](#local-development)
 - [GitHub Actions](#github-actions)
 - [Project Structure](#project-structure)
@@ -18,192 +20,216 @@ visualised in a Next.js dashboard deployed to GitHub Pages.
 ## Architecture
 
 ```mermaid
-flowchart TD
-  GHA["GitHub Actions\n(nightly cron)"]
+flowchart LR
+  GHA["GitHub Actions (nightly, OIDC)"]
   TRIVY["trivy"]
   GRYPE["grype"]
-  DB["Supabase (PostgreSQL)"]
-  WEB["Next.js Dashboard (GitHub Pages)"]
+  DB[("DynamoDB container-image-scans")]
+  COGNITO["Cognito identity pool (guest)"]
+  WEB["Dashboard (GitHub Pages)"]
 
   GHA --> TRIVY
   GHA --> GRYPE
-  TRIVY -- "SARIF + metadata" --> DB
-  GRYPE -- "SARIF + metadata" --> DB
-  DB -- "anon key (read)" --> WEB
+  GHA -- "BatchWriteItem" --> DB
+  WEB -- "guest credentials" --> COGNITO
+  WEB -- "Query" --> DB
 ```
+
+There is no backend: the browser gets read-only guest credentials from
+Cognito and queries DynamoDB directly. Everything stays in the AWS Always
+Free tier.
 
 ## Container Images
 
-Images are organised into groups:
+`images.yml` is the source of truth: groups (language / purpose) with images
+from different vendors. Only rolling tags (`latest`, `alpine`, `slim`, ...) are
+used, so the list never pins an old version. The next scan picks up added or
+changed images.
 
-| Group  | Image                                                        |
-|--------|--------------------------------------------------------------|
-| python | `docker.io/python:alpine`                                    |
-| python | `gcr.io/distroless/python3-debian12:latest`                  |
-| python | `cgr.dev/chainguard/python:latest`                           |
-| python | `registry.access.redhat.com/ubi10/python-312-minimal:latest` |
-| node   | `docker.io/node:24-alpine`                                   |
-| node   | `gcr.io/distroless/nodejs24-debian12:latest`                 |
-| node   | `cgr.dev/chainguard/node:latest`                             |
-| node   | `registry.access.redhat.com/ubi10/nodejs-24-minimal:latest`  |
-| php    | `docker.io/php:alpine`                                       |
-| php    | `cgr.dev/chainguard/php:latest`                              |
-| php    | `registry.access.redhat.com/ubi10/php-83:latest`             |
-| nginx  | `docker.io/nginx:alpine`                                     |
-| nginx  | `cgr.dev/chainguard/nginx:latest`                            |
-| nginx  | `registry.access.redhat.com/ubi10/nginx-126:latest`          |
-| ruby   | `docker.io/ruby:alpine`                                      |
-| ruby   | `cgr.dev/chainguard/ruby:latest`                             |
-| ruby   | `registry.access.redhat.com/ubi10/ruby-33:latest`            |
-| base   | `docker.io/alpine:latest`                                    |
-| base   | `docker.io/debian:stable-slim`                               |
-| base   | `docker.io/ubuntu:latest`                                    |
-| base   | `gcr.io/distroless/static:latest`                            |
-| base   | `registry.access.redhat.com/ubi10-micro:latest`              |
+```yaml
+php:
+  description: PHP interpreter
+  images:
+    chainguard:                      # vendor - a column on the dashboard
+      image: cgr.dev/chainguard/php:latest
+      description: Chainguard Image on Wolfi OS - minimal, no shell
+```
 
-To add more images, insert rows into the `container_images` table
-with the appropriate `group_id`. The nightly scan picks up all images
-automatically.
+```text
+images.yml
++-- python - Python interpreter
+|   +-- docker      docker.io/python:alpine                       # Docker Official Image on Alpine Linux (musl)
+|   +-- docker-slim docker.io/python:slim                         # Docker Official Image on Debian (slim variant)
+|   +-- distroless  gcr.io/distroless/python3:latest              # Google distroless on Debian - no shell, no package manager
+|   +-- chainguard  cgr.dev/chainguard/python:latest              # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/python:latest             # Red Hat Hardened Image (Project Hummingbird) - distroless
+|
++-- node - Node.js JavaScript runtime
+|   +-- docker      docker.io/node:alpine                         # Docker Official Image on Alpine Linux (musl)
+|   +-- docker-slim docker.io/node:slim                           # Docker Official Image on Debian (slim variant)
+|   +-- chainguard  cgr.dev/chainguard/node:latest                # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/nodejs:latest             # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/bci/nodejs:latest           # SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+|
++-- php - PHP interpreter
+|   +-- docker      docker.io/php:alpine                          # Docker Official Image on Alpine Linux (musl), PHP CLI
+|   +-- chainguard  cgr.dev/chainguard/php:latest                 # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/php:latest                # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/bci/php:latest              # SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+|
++-- nginx - nginx web server and reverse proxy
+|   +-- docker      docker.io/nginx:alpine                        # Docker Official Image on Alpine Linux (mainline release)
+|   +-- chainguard  cgr.dev/chainguard/nginx:latest               # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/nginx:latest              # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/suse/nginx:latest           # SUSE application image on SUSE Linux Enterprise
+|   +-- ubuntu      docker.io/ubuntu/nginx:latest                 # Canonical image on Ubuntu LTS
+|
++-- ruby - Ruby interpreter
+|   +-- docker      docker.io/ruby:alpine                         # Docker Official Image on Alpine Linux (musl)
+|   +-- docker-slim docker.io/ruby:slim                           # Docker Official Image on Debian (slim variant)
+|   +-- chainguard  cgr.dev/chainguard/ruby:latest                # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/ruby:latest               # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/bci/ruby:latest             # SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+|
++-- java - Java runtime (OpenJDK distributions)
+|   +-- temurin     docker.io/eclipse-temurin:latest              # Eclipse Temurin JDK (Adoptium) - Docker Official Image on Ubuntu
+|   +-- corretto    docker.io/amazoncorretto:latest               # Amazon Corretto JDK - Amazon's OpenJDK build
+|   +-- chainguard  cgr.dev/chainguard/jre:latest                 # Chainguard JRE on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/openjdk:latest            # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/bci/openjdk:latest          # SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+|
++-- dotnet - ASP.NET Core runtime
+|   +-- microsoft   mcr.microsoft.com/dotnet/aspnet:latest        # Microsoft official image on Debian
+|   +-- chainguard  cgr.dev/chainguard/aspnet-runtime:latest      # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/aspnet-runtime:latest     # Red Hat Hardened Image (Project Hummingbird) - distroless
+|
++-- base - Minimal base OS images
+    +-- alpine      docker.io/alpine:latest                       # Alpine Linux - Docker Official Image (musl, BusyBox)
+    +-- debian      docker.io/debian:stable-slim                  # Debian stable - Docker Official Image (slim variant)
+    +-- ubuntu      docker.io/ubuntu:latest                       # Ubuntu LTS - Docker Official Image
+    +-- amazonlinux public.ecr.aws/amazonlinux/amazonlinux:latest # Amazon Linux - official image from Amazon ECR Public
+    +-- distroless  gcr.io/distroless/static:latest               # Google distroless static - for static binaries, no libc
+    +-- chainguard  cgr.dev/chainguard/static:latest              # Chainguard static on Wolfi OS - for static binaries
+    +-- hummingbird quay.io/hummingbird/core-runtime:latest       # Red Hat Hardened Image (Project Hummingbird) - minimal runtime
+```
+
+Keep this tree in sync with `images.yml`.
 
 ## Prerequisites
 
-- [mise](https://mise.jdx.dev/)
-  (`curl https://mise.run | sh`)
-  -- manages Node.js, Supabase CLI, fnox, grype, trivy, and yq
-  via `.mise.toml`
-- A [Supabase](https://supabase.com/) project (free tier works)
+- [mise](https://mise.jdx.dev/) (`curl https://mise.run | sh`) - manages
+  Bun, grype, trivy, and [uv](https://docs.astral.sh/uv/) via `mise.toml`.
+  uv installs Python (`.python-version`) and the scanner dependencies
+  (`uv.lock`). Run `mise install` after cloning
 - [Docker](https://www.docker.com/) (for running scans locally)
 
-After cloning the repository, run `mise install` to install all
-required tools at the versions defined in `.mise.toml`.
+## AWS Infrastructure
 
-For local development [fnox](https://fnox.jdx.dev/) fetches secrets
-from AWS Parameter Store (configured in `fnox.toml`). The mise tasks
-that need them (`scan:upload`, `db:push`, `web:dev`, `web:build`) wrap
-their commands in `fnox exec --`. This
-requires an AWS profile named `my-aws` with access to the
-`/github/ruzickap/container-image-scans/actions-secrets/` path in
-the `eu-central-1` region.
+The DynamoDB table, the Cognito identity pool, the IAM roles, and the
+alerts are managed by OpenTofu in
+[`ruzickap/my-git-projects/opentofu/aws`](https://github.com/ruzickap/my-git-projects/tree/main/opentofu/aws)
+(account `my-aws`, region `eu-central-1`). This repository only uses them:
 
-## Supabase Setup
+| Resource                                             | Used by                                             |
+|------------------------------------------------------|-----------------------------------------------------|
+| DynamoDB table `container-image-scans`               | `scripts/scan_and_upload.py` (write), `web/` (read) |
+| Cognito identity pool                                | `web/` - guest `GetItem` / `BatchGetItem` / `Query` |
+| IAM role `GitHubOidc-ruzickap-container-image-scans` | GitHub Actions (OIDC) - write to the table          |
 
-### 1. Create a Supabase project
+The role ARN is stored as the `CONTAINER_IMAGE_SCANS_AWS_ROLE_TO_ASSUME`
+Actions secret. The identity pool ID, region, and table name are public and
+set in `web/src/lib/dynamodb.ts`.
 
-Sign up at [supabase.com](https://supabase.com/) and create a new
-project. Note the **Project URL** and **API keys** from
-`Settings > API`.
+The table has only 2 RCU / 25 WCU (free tier): writes are throttled and
+retried, the dashboard reads only small partitions (no `Scan`).
 
-### 2. Apply the database migration
+## Data Model
 
-Run the `db:push` mise task, which links the CLI to your project and
-pushes all pending migrations in `supabase/migrations/`:
+One table, partition key `pk`, sort key `sk` (both strings). Every item
+has `expires_at` (epoch seconds) - DynamoDB TTL deletes it two years after
+the scan.
 
-```bash
-export SUPABASE_ACCESS_TOKEN="your-access-token"
-export SUPABASE_PROJECT_REF="your-project-ref"
-export SUPABASE_DB_PASSWORD="your-db-password"
-mise run db:push
-```
+| Item        | `pk`                                           | `sk`                         | Attributes                                                                                                                                                                                                                  |
+|-------------|------------------------------------------------|------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Latest scan | `LATEST`                                       | `<group>#<vendor>#<scanner>` | `group`, `group_description`, `vendor`, `image`, `image_description`, `scanner`, `scanner_version`, `scanner_db`, `image_digest`, `scanned_at`, `cves_pk`, `cve_total`, `cve_critical`, `cve_high`, `cve_medium`, `cve_low` |
+| CVE         | `CVES#<group>#<vendor>#<scanner>#<scanned_at>` | `<CVE ID>#<package>`         | `cve_id`, `severity`, `description`, `url`, `package_name`, `installed_version`, `fixed_version`                                                                                                                            |
 
-When `fnox.toml` can be resolved, `fnox exec` populates the three
-variables above automatically from AWS Parameter Store.
-
-Alternatively, apply the schema manually via the **SQL Editor** in
-the Supabase Dashboard:
-
-1. Open your project in the Supabase Dashboard
-2. Go to **SQL Editor**
-3. Paste the contents of
-   `supabase/migrations/20250301000000_initial_schema.sql`
-4. Click **Run**
-
-### 3. Verify tables exist
-
-In the Supabase Dashboard go to **Table Editor** and confirm these
-tables were created:
-
-- `image_groups` (seeded with `python`, `node`, `php`, `nginx`,
-  `ruby`, and `base`)
-- `container_images` (seeded with all twenty-two images)
-- `scans` (empty, populated by nightly scans)
-- `cves` (empty, populated by nightly scans)
-
-### 4. Adding new images
-
-```sql
--- First add the group if it does not exist
-INSERT INTO image_groups (name)
-VALUES ('your-group')
-ON CONFLICT (name) DO NOTHING;
-
--- Then add the image
-INSERT INTO container_images (image, group_id)
-VALUES (
-  'docker.io/your-image:tag',
-  (SELECT id FROM image_groups WHERE name = 'your-group')
-);
-```
+- The dashboard queries `pk = LATEST` for the overview and `pk = cves_pk`
+  for the CVEs of one scan
+- Each scan writes its CVEs to a new partition first and then overwrites
+  its `LATEST` item, so the dashboard never shows a half-written scan
+- `LATEST` is keyed by group and vendor, not by the image name - a new
+  image of the same vendor replaces the old row. Removed groups / vendors
+  stay until the TTL deletes them
+- Severity, package, and versions are the scanner's own values (from its
+  JSON report: `trivy --format json`, `grype --by-cve -o json`), one entry
+  per CVE and package - so trivy and grype counts are comparable
+- A failed pull, scanner run, or upload is skipped - the dashboard keeps
+  the previous result. The other images are still scanned, the run fails
+  at the end
+- The vulnerability databases are updated once per run - all scans use
+  them (no per-scan update), trivy scans only for vulnerabilities (no
+  secret scanning)
+- The full scanner reports are not stored (DynamoDB items are limited to
+  400 KB)
 
 ## Local Development
 
-### Web application
-
-```bash
-mise install # install Node.js, Supabase CLI, fnox, etc.
-mise run web:dev
-```
-
-Or manually:
-
-```bash
-cd web || exit
-cp .env.example .env.local
-# Edit .env.local with your Supabase credentials
-npm install
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
 ### Running a scan locally
 
-Scan all images and print a CVE summary (no Supabase needed):
+Scan all images and print a CVE summary (no AWS needed):
 
 ```bash
 mise run scan
 ```
 
-To also upload results to Supabase, use the `scan:upload` task:
+Scan and upload the results to DynamoDB (needs AWS credentials allowed to
+write to the table, e.g. the `my-aws` profile):
 
 ```bash
-export SUPABASE_URL="https://xxx.supabase.co"
-export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-mise run scan:upload
+AWS_PROFILE=my-aws mise run scan:upload
 ```
 
-### Pushing database migrations
+The scanner is the Python script `scripts/scan_and_upload.py` (run by
+uv). It also reads `AWS_REGION` (default `eu-central-1`), `DYNAMODB_TABLE`
+(default `container-image-scans`), and `IMAGES_FILE` (default
+`images.yml`). Its tests need no Docker, scanners, or AWS:
 
 ```bash
-mise run db:push
+mise run scan:test # pytest
 ```
 
-This requires `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, and
-`SUPABASE_DB_PASSWORD` in the environment (or provided automatically
-by `fnox exec` from AWS Parameter Store).
+### Dashboard
+
+`web/` is a [Vite](https://vite.dev/) + [Svelte](https://svelte.dev/)
+TypeScript app, installed, tested, and built with [Bun](https://bun.com/)
+(`web/bunfig.toml` runs the scripts on the Bun runtime). The build bundles
+the AWS SDK and produces static files in `web/dist/`, published to GitHub
+Pages.
+
+```bash
+mise run web:dev   # dev server with hot reload, reads the real DynamoDB table
+mise run web:test  # Vitest + Svelte Testing Library, no AWS access needed
+mise run web:build # svelte-check + tsc, then build to web/dist/
+```
+
+To use [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)
+instead of AWS, set `VITE_DYNAMODB_ENDPOINT=http://localhost:8000` for
+`bun run dev` / `bun run build` in `web/` (Cognito still issues the guest
+credentials, DynamoDB Local accepts any).
 
 ### Available mise tasks
 
-| Task          | Description                                    |
-|---------------|------------------------------------------------|
-| `web:install` | Install web app dependencies                   |
-| `web:dev`     | Start Next.js development server               |
-| `web:build`   | Build static site export to `web/out/`         |
-| `scan`        | Scan all container images, print CVE summary   |
-| `scan:upload` | Scan all images and upload results to Supabase |
-| `db:push`     | Link Supabase project and push migrations      |
-| `build`       | Build the web app (alias for `web:build`)      |
-
-The image list is defined in `images.yml` at the repository root.
+| Task          | Description                                        |
+|---------------|----------------------------------------------------|
+| `scan`        | Scan all container images, print CVE summary       |
+| `scan:upload` | Scan all images and upload results to DynamoDB     |
+| `scan:test`   | Run the scanner tests (pytest)                     |
+| `web:install` | Install the dashboard dependencies (`bun install`) |
+| `web:dev`     | Start the dashboard dev server with hot reload     |
+| `web:check`   | Type-check the dashboard (`svelte-check` + `tsc`)  |
+| `web:test`    | Run the dashboard tests (Vitest)                   |
+| `web:build`   | Type-check and build the dashboard to `web/dist/`  |
 
 ## GitHub Actions
 
@@ -211,44 +237,55 @@ The image list is defined in `images.yml` at the repository root.
 
 #### Nightly Scans (`.github/workflows/nightly-scans.yml`)
 
-- **Schedule**: every day at 00:00 UTC
-- **Runner**: `ubuntu-24.04-arm`
-- Installs trivy and grype via mise
-- Pulls each container image, scans with both scanners
-- Uploads SARIF output and extracted CVEs to Supabase
-- Each scan record stores: image digest, scanner version,
-  grype DB status, CVE count, full SARIF, and timestamp
+- **Schedule**: every day at 00:00 UTC (or manual)
+- Assumes the AWS role via OIDC (`CONTAINER_IMAGE_SCANS_AWS_ROLE_TO_ASSUME`),
+  the credentials are valid 1 hour - so the run is limited to 1 hour
+  (`timeout-minutes: 60`). Images not scanned in time keep their previous
+  results
+- Installs trivy, grype, and uv via mise (uv installs Python and the
+  scanner dependencies)
+- Pulls each image, scans it with both scanners, writes the results to
+  DynamoDB (`mise run scan:upload`), and removes the image to free the
+  runner disk (CI only)
+
+#### Scanner Tests (`.github/workflows/scanner-tests.yml`)
+
+- **Trigger**: push to any branch except `main` touching the scanner
+  (`scripts/**`, `tests/**`, `pyproject.toml`, `uv.lock`), `images.yml`,
+  or `mise.toml`, or manual
+- Runs the scanner tests (`mise run scan:test`). Not a required check - do
+  not merge a red run
 
 #### Deploy Web (`.github/workflows/deploy-web.yml`)
 
-- **Trigger**: push to `main` touching `web/**`, or manual
-- Builds the Next.js static site
-- Deploys to GitHub Pages
+- **Trigger**: push to `main` touching `web/**` or `mise.toml`, or manual
+- Installs Bun via mise, type-checks and builds the dashboard
+  (`mise run web:build`), and publishes `web/dist/` to the `gh-pages`
+  branch (GitHub Pages). The tests already ran on the branch (Web Tests)
 
-#### Apply Schema (`.github/workflows/apply-schema.yml`)
+#### Web Tests (`.github/workflows/web-tests.yml`)
 
-- **Trigger**: push to `main` touching `supabase/migrations/**`,
-  or manual
-- Links the Supabase project and pushes pending migrations via
-  `mise run db:push`
+- **Trigger**: push to any branch except `main` touching `web/**` or
+  `mise.toml` (pull request and Renovate branches), or manual. Not a
+  required check - do not merge a red run
+- Runs the tests (`mise run web:test`), the type check and the build
+  (`mise run web:build`)
 
 ### CI / quality workflows
 
-| Workflow          | File                        | Trigger                     |
-|-------------------|-----------------------------|-----------------------------|
-| MegaLinter        | `mega-linter.yml`           | Push to non-main branches   |
-| CodeQL            | `codeql.yml`                | Push to `main`, PRs, weekly |
-| OSSF Scorecards   | `scorecards.yml`            | Push to `main`, weekly      |
-| Commit Check      | `commit-check.yml`          | PRs to `main`               |
-| Semantic PR Title | `semantic-pull-request.yml` | PRs (opened, edited, sync)  |
+| Workflow        | File               | Trigger                     |
+|-----------------|--------------------|-----------------------------|
+| MegaLinter      | `mega-linter.yml`  | Push to non-main branches   |
+| CodeQL          | `codeql.yml`       | Push to `main`, PRs, weekly |
+| OSSF Scorecards | `scorecards.yml`   | Push to `main`, weekly      |
+| Commit Check    | `commit-check.yml` | PRs to `main`               |
 
 ### Automation workflows
 
 | Workflow              | File                        | Trigger                         |
 |-----------------------|-----------------------------|---------------------------------|
 | Release Please        | `release-please.yml`        | Push to `main`                  |
-| Renovate              | `renovate.yml`              | Push to `main`, weekly          |
-| Stale Issues/PRs      | `stale.yml`                 | Daily at 09:09 UTC              |
+| Stale Issues/PRs      | `stale.yml`                 | Daily                           |
 | PR Size Labeler       | `pr-size-labeler.yml`       | Pull requests                   |
 | PR Slack Notification | `pr-slack-notification.yml` | PR events (open, review, close) |
 
@@ -258,7 +295,6 @@ The image list is defined in `images.yml` at the repository root.
 container-image-scans/
 +-- .github/
 |   +-- workflows/
-|       +-- apply-schema.yml          # Push DB migrations via Supabase CLI
 |       +-- codeql.yml                # CodeQL security analysis
 |       +-- commit-check.yml          # Commit message validation
 |       +-- deploy-web.yml            # Deploy dashboard to GH Pages
@@ -267,45 +303,42 @@ container-image-scans/
 |       +-- pr-size-labeler.yml       # Auto-label PRs by size
 |       +-- pr-slack-notification.yml # Slack notifications for PRs
 |       +-- release-please.yml        # Automated releases
-|       +-- renovate.yml              # Dependency updates
 |       +-- scorecards.yml            # OSSF Scorecard analysis
-|       +-- semantic-pull-request.yml # PR title validation
 |       +-- stale.yml                 # Close stale issues/PRs
+|       +-- scanner-tests.yml         # Test the scanner on push
+|       +-- web-tests.yml             # Test + build the dashboard on push
 +-- scripts/
-|   +-- apply-schema.sh              # Link Supabase + push migrations
-|   +-- scan-and-upload.sh           # Scan images & upload to Supabase
-+-- supabase/
-|   +-- migrations/
-|   |   +-- 20250301000000_initial_schema.sql  # Tables, RLS, seed data
-|   +-- config.toml                  # Supabase CLI configuration
-|   +-- schema.sql                   # Reference schema (seed + DDL)
-+-- web/                             # Next.js 15 dashboard application
+|   +-- scan_and_upload.py            # Scan images & upload to DynamoDB
++-- tests/
+|   +-- test_scan_and_upload.py       # Scanner tests (fake scanners / table)
++-- web/                              # Dashboard (Vite + Svelte, GitHub Pages)
 |   +-- src/
-|   |   +-- app/
-|   |   |   +-- globals.css          # Global styles + CSS variables
-|   |   |   +-- layout.tsx           # Root layout
-|   |   |   +-- page.tsx             # Main page
-|   |   +-- components/
-|   |   |   +-- CveDetailTab.tsx     # CVE detail table with filters
-|   |   |   +-- CveTooltip.tsx       # Hover tooltip with markdown
-|   |   |   +-- HistoryCharts.tsx    # History line charts
-|   |   +-- lib/
-|   |       +-- supabase.ts          # Supabase client + data fetchers
-|   +-- .env.example                 # Template for local env vars
-|   +-- next.config.js
-|   +-- package.json
-|   +-- tsconfig.json
-+-- .checkov.yml                     # Checkov skip-check config
+|   |   +-- lib/dynamodb.ts           # Cognito guest + DynamoDB queries, types
+|   |   +-- lib/dynamodb.test.ts      # Tests: paged Query (fake AWS client)
+|   |   +-- App.svelte                # Overview table + CVE list
+|   |   +-- App.test.ts               # Tests: rendering, sorting, clicks, safety
+|   |   +-- app.css                   # Global styles
+|   |   +-- main.ts                   # Mounts the app
+|   |   +-- test-setup.ts             # Vitest setup (DOM matchers)
+|   +-- index.html                    # Vite entry page
+|   +-- bun.lock                      # Locked dependency versions (Bun)
+|   +-- bunfig.toml                   # Bun config: scripts run on Bun, not Node.js
+|   +-- package.json                  # Dependencies + scripts
+|   +-- svelte.config.js
+|   +-- tsconfig*.json
+|   +-- vite.config.ts                # Vite + Vitest configuration
++-- .checkov.yml                      # Checkov skip-check config
 +-- .gitignore
-+-- .mega-linter.yml                 # MegaLinter configuration
-+-- .mise.toml                       # mise tool versions + tasks
-+-- .pre-commit-config.yaml          # pre-commit hooks (symlinked)
-+-- .rumdl.toml                      # rumdl markdown linter config
-+-- AGENTS.md                        # AI agent coding guidelines
-+-- fnox.toml                        # Secrets via AWS Parameter Store
-+-- images.yml                       # Container images to scan
++-- .mega-linter.yml                  # MegaLinter configuration
++-- .rumdl.toml                       # rumdl markdown linter config
++-- AGENTS.md                         # AI agent coding guidelines
++-- images.yml                        # Container images to scan
 +-- LICENSE
-+-- lychee.toml                      # Link checker configuration
++-- lychee.toml                       # Link checker configuration
++-- mise.toml                         # mise tool versions + tasks
++-- pyproject.toml                    # Scanner dependencies + linter config
++-- .python-version                   # Python version for uv
 +-- README.md
-+-- SECURITY.md                      # Security policy
++-- SECURITY.md                       # Security policy
++-- uv.lock                           # Locked scanner dependency versions
 ```

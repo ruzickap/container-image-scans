@@ -22,6 +22,7 @@ BASH_SHFMT_ARGUMENTS: --case-indent --indent 2 --space-redirects
 # Disable linters
 DISABLE_LINTERS:
   - SPELL_CSPELL # Spell checking disabled - prone to false positives
+  - TYPESCRIPT_STANDARD # web/ uses Prettier (TYPESCRIPT_DEFAULT_STYLE does not disable it)
 
 # Fail the build if a required linter is missing from the Docker flavor
 FAIL_IF_MISSING_LINTER_IN_FLAVOR: true
@@ -38,6 +39,9 @@ JSON_JSONLINT_ARGUMENTS: --comments
 # Exclude devcontainer.json from JSON linting (VS Code extension format)
 JSON_JSONLINT_FILTER_REGEX_EXCLUDE: .devcontainer/devcontainer.json
 
+# Use Prettier for JavaScript formatting (web/ is a Vite + Svelte app) instead of standard
+JAVASCRIPT_DEFAULT_STYLE: prettier
+
 # Use rumdl as the default Markdown style (faster Rust-based alternative)
 MARKDOWN_DEFAULT_STYLE: rumdl
 
@@ -47,8 +51,20 @@ MARKDOWN_RUMDL_FILTER_REGEX_EXCLUDE: CHANGELOG\.md
 # Disable the MegaLinter ASCII art graphic in output
 PRINT_ALPACA: false
 
+# Bandit reads [tool.bandit] from pyproject.toml
+PYTHON_BANDIT_CONFIG_FILE: pyproject.toml
+
 # Use ruff as the default Python style (faster Rust-based alternative)
 PYTHON_DEFAULT_STYLE: ruff
+
+# Python linters read their settings from pyproject.toml (not the MegaLinter defaults)
+PYTHON_ISORT_CONFIG_FILE: pyproject.toml
+
+PYTHON_PYLINT_CONFIG_FILE: pyproject.toml
+
+PYTHON_RUFF_CONFIG_FILE: pyproject.toml
+
+PYTHON_RUFF_FORMAT_CONFIG_FILE: pyproject.toml
 
 # Don't create a report output folder (using CI artifacts instead)
 REPORT_OUTPUT_FOLDER: none
@@ -75,6 +91,9 @@ SPELL_LYCHEE_UNSECURED_ENV_VARIABLES:
 # Allow tflint (Terraform linter) to access GitHub token for plugin downloads
 TERRAFORM_TFLINT_UNSECURED_ENV_VARIABLES:
   - GITHUB_TOKEN
+
+# Use Prettier for TypeScript formatting (web/ is a Vite + Svelte app) instead of standard
+TYPESCRIPT_DEFAULT_STYLE: prettier
 
 # Prettier (TypeScript/JavaScript formatter) configuration
 TYPESCRIPT_PRETTIER_ARGUMENTS: --html-whitespace-sensitivity=ignore
