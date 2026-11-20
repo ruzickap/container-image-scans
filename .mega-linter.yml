@@ -22,6 +22,7 @@ BASH_SHFMT_ARGUMENTS: --case-indent --indent 2 --space-redirects
 # Disable linters
 DISABLE_LINTERS:
   - SPELL_CSPELL # Spell checking disabled - prone to false positives
+  - TYPESCRIPT_STANDARD # web/ uses Prettier (TYPESCRIPT_DEFAULT_STYLE does not disable it)
 
 # Fail the build if a required linter is missing from the Docker flavor
 FAIL_IF_MISSING_LINTER_IN_FLAVOR: true
@@ -52,6 +53,15 @@ PRINT_ALPACA: false
 
 # Use ruff as the default Python style (faster Rust-based alternative)
 PYTHON_DEFAULT_STYLE: ruff
+
+# Python linters read their settings from pyproject.toml (not the MegaLinter defaults)
+PYTHON_ISORT_CONFIG_FILE: pyproject.toml
+
+PYTHON_PYLINT_CONFIG_FILE: pyproject.toml
+
+PYTHON_RUFF_CONFIG_FILE: pyproject.toml
+
+PYTHON_RUFF_FORMAT_CONFIG_FILE: pyproject.toml
 
 # Don't create a report output folder (using CI artifacts instead)
 REPORT_OUTPUT_FOLDER: none

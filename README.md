@@ -4,7 +4,7 @@ Compare CVE findings across container images using
 [trivy](https://trivy.dev/) and [grype](https://github.com/anchore/grype)
 scanners. Results are stored in [Amazon DynamoDB](https://aws.amazon.com/dynamodb/)
 and shown by a dashboard (Vite + Svelte) on GitHub Pages:
-[ruzickap.github.io/container-image-scans](https://ruzickap.github.io/container-image-scans/).
+`https://ruzickap.github.io/container-image-scans/`.
 
 ## Table of Contents
 
@@ -180,7 +180,7 @@ uv). It also reads `AWS_REGION` (default `eu-central-1`), `DYNAMODB_TABLE`
 `images.yml`). Its tests need no Docker, scanners, or AWS:
 
 ```bash
-mise run scan:test  # pytest
+mise run scan:test # pytest
 ```
 
 ### Dashboard
@@ -192,9 +192,9 @@ the AWS SDK and produces static files in `web/dist/`, published to GitHub
 Pages.
 
 ```bash
-mise run web:dev    # dev server with hot reload, reads the real DynamoDB table
-mise run web:test   # Vitest + Svelte Testing Library, no AWS access needed
-mise run web:build  # svelte-check + tsc, then build to web/dist/
+mise run web:dev   # dev server with hot reload, reads the real DynamoDB table
+mise run web:test  # Vitest + Svelte Testing Library, no AWS access needed
+mise run web:build # svelte-check + tsc, then build to web/dist/
 ```
 
 To use [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html)
