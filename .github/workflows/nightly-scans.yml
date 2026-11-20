@@ -2,9 +2,9 @@
 name: nightly-scans
 
 on:
-  # schedule:
-  #   # Run every day at midnight UTC
-  #   - cron: "0 0 * * *"
+  schedule:
+    # Run every day at midnight UTC
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions: read-all
@@ -13,7 +13,7 @@ jobs:
   nightly-scans:
     name: Scan container images
     runs-on: ubuntu-26.04-arm
-    timeout-minutes: 60
+    timeout-minutes: 180
     permissions:
       contents: read # Required to checkout repository.
       id-token: write # Required to assume AWS role via OIDC.
@@ -27,11 +27,15 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ secrets.MY_AWS_AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ secrets.CONTAINER_IMAGE_SCANS_AWS_ROLE_TO_ASSUME }}
           aws-region: eu-central-1
+          # Credentials valid for the whole run (timeout-minutes), the role allows max. 3 hours
+          role-duration-seconds: 10800
 
-      - name: Install tools via mise
+      - name: Install the scanner tools via mise
         uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          install_args: grype trivy uv
 
       - name: Run scans and upload results
         run: mise run scan:upload

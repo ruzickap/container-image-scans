@@ -1,48 +1,50 @@
 [tools]
-fnox = "1.48.0"
+bun = "1.4.5"
 grype = "0.121.3"
-node = "26.13.1"
-supabase = "3.1.0"
 trivy = "0.76.2"
-yq = "4.54.3"
+uv = "0.13.9"
 
-# ── Web app tasks ────────────────────────────────────────────────
+# ── Scanner tasks (Python via uv, scripts/scan_and_upload.py) ───
+
+[tasks.scan]
+description = "Scan all container images and print CVE summary"
+run = "uv run --locked scripts/scan_and_upload.py scan"
+
+[tasks."scan:upload"]
+description = "Scan all images and upload results to DynamoDB (requires AWS credentials, e.g. AWS_PROFILE=my-aws)"
+run = "uv run --locked scripts/scan_and_upload.py upload"
+
+[tasks."scan:test"]
+description = "Run the scanner tests (pytest, no Docker / AWS needed)"
+run = "uv run --locked pytest"
+
+# ── Web app tasks (Vite + Svelte in web/, run with Bun) ──────────
 
 [tasks."web:install"]
-description = "Install web app dependencies"
-run = "npm ci"
+description = "Install the dashboard dependencies (from bun.lock)"
+run = "bun install --frozen-lockfile"
 dir = "web"
 
 [tasks."web:dev"]
-description = "Start Next.js development server"
-run = "fnox exec -- npm run dev"
+description = "Start the dashboard dev server with hot reload"
+run = "bun run dev"
+dir = "web"
+depends = ["web:install"]
+
+[tasks."web:check"]
+description = "Type-check the dashboard (svelte-check + tsc)"
+run = "bun run check"
+dir = "web"
+depends = ["web:install"]
+
+[tasks."web:test"]
+description = "Run the dashboard tests (Vitest)"
+run = "bun run test"
 dir = "web"
 depends = ["web:install"]
 
 [tasks."web:build"]
-description = "Build static site export to web/out/"
-run = "fnox exec -- npm run build"
+description = "Build the dashboard to web/dist/"
+run = "bun run build"
 dir = "web"
-depends = ["web:install"]
-sources = ["web/src/**", "web/package.json", "web/tsconfig.json", "web/next.config.js"]
-outputs = ["web/out/**"]
-
-# ── Shell script tasks ───────────────────────────────────────────
-
-[tasks.scan]
-description = "Scan all container images and print CVE summary"
-run = "bash scripts/scan-and-upload.sh scan"
-
-[tasks."scan:upload"]
-description = "Scan all images and upload results to Supabase (requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)"
-run = "fnox exec -- bash scripts/scan-and-upload.sh upload"
-
-[tasks."db:push"]
-description = "Link Supabase project and push pending migrations (requires SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD)"
-run = "fnox exec -- bash scripts/apply-schema.sh apply"
-
-# ── Aggregate tasks ──────────────────────────────────────────────
-
-[tasks.build]
-description = "Build the web app"
-depends = ["web:build"]
+depends = ["web:check"]

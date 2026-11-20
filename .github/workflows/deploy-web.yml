@@ -1,0 +1,42 @@
+---
+name: deploy-web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-web.yml
+      - mise.toml
+      - web/**
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  deploy-web:
+    name: Deploy dashboard to GitHub Pages
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: write # Required to push the gh-pages branch.
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Bun via mise
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+        with:
+          install_args: bun
+
+      - name: Type-check and build the dashboard
+        run: mise run web:build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./web/dist
+          force_orphan: true

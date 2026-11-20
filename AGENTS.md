@@ -5,98 +5,134 @@ Guidance for AI agents working on **container-image-scans**.
 ## What this repo is
 
 Nightly job that scans container images (listed in `images.yml`) with
-**trivy** and **grype**, then stores SARIF + extracted CVEs in
-**Supabase** (PostgreSQL). A Next.js dashboard on GitHub Pages is
-**planned but not yet implemented** (see gotcha below).
+**trivy** and **grype**, then stores the extracted CVEs in **Amazon
+DynamoDB**. A dashboard (`web/`, Vite + Svelte, GitHub Pages) reads them
+directly from the browser with **Cognito guest credentials** - there is
+no backend.
 
-Real, present components: `scripts/` (bash scanners), `supabase/`
-(schema + migrations), `.github/workflows/` (CI + automation).
+Components: `scripts/scan_and_upload.py` (scanner + uploader, Python), `web/`
+(dashboard), `.github/workflows/` (CI + automation).
 
 ## Critical gotchas
 
-- **`web/` does not exist yet.** The README, mise `web:*`/`build`
-  tasks, `deploy-web.yml`, and `web/.env.example` reference a Next.js
-  app that has never been committed. Do not assume it is there; the
-  `web:install`/`web:dev`/`web:build`/`build` mise tasks will fail
-  until `web/` is created. Treat any web-app instructions as the
-  intended design for new code, not existing code.
+- **The AWS resources are not managed here.** The DynamoDB table
+  `container-image-scans`, the Cognito identity pool, the IAM roles, and
+  the alarms live in OpenTofu in `ruzickap/my-git-projects`
+  (`opentofu/aws`, account `my-aws`, `eu-central-1`). Change them there.
+- **Free tier limits shape the code.** The table has only **2 RCU /
+  25 WCU**: writes are throttled (the script retries `UnprocessedItems`),
+  and readers must use `Query` / `GetItem` on small partitions. The guest
+  role can not `Scan` or write. Do not add global secondary indexes.
+- **Items are max. 400 KB** - do not store the full scanner reports.
+- **Scanner results come from their JSON reports** (`trivy --format json`,
+  `grype --by-cve -o json`), mapped by `trivy_cves()` / `grype_cves()` -
+  do not parse the free-text messages.
+- **Everything in the table is public** (the identity pool ID is in
+  `web/src/lib/dynamodb.ts`). Store only public scan data.
+- **JavaScript / TypeScript style is Prettier, not standard.**
+  `.mega-linter.yml` sets `JAVASCRIPT_DEFAULT_STYLE` /
+  `TYPESCRIPT_DEFAULT_STYLE: prettier` and is kept by multi-gitter
+  (`checkout_files` in `ruzickap/my-git-projects`) - do not reset it to
+  the shared default.
 - **`.pre-commit-config.yaml` is gitignored** (see `.gitignore`) and
   symlinked locally. It is not in the repo; do not edit or rely on it
   being present in CI.
 - **Lint runs only on non-main branches.** `mega-linter.yml` triggers
   on `branches-ignore: [main]`, so push work to a branch to get
   linting. It also extracts every `bash`/`shell`/`sh` code block from
-  changed `*.md` files and shell-checks them — keep markdown shell
+  changed `*.md` files and shell-checks them - keep markdown shell
   snippets syntactically valid.
 
 ## Tooling and commands
 
 `mise` is the task runner and tool manager. Run `mise install` once to
-get node 24, supabase CLI, trivy, grype, yq, and fnox at pinned
-versions (`mise.toml`).
+get Bun, grype, trivy, and uv at pinned versions (uv installs Python from
+`.python-version` and the scanner dependencies from `uv.lock`)
+(`mise.toml`).
 
-| Command                | What it does                                     |
-|------------------------|--------------------------------------------------|
-| `mise run scan`        | Scan all images, print CVE summary (no Supabase) |
-| `mise run scan:upload` | Scan + upload to Supabase (needs env, see below) |
-| `mise run db:push`     | Link Supabase project + push migrations          |
+| Command                | What it does                                      |
+|------------------------|---------------------------------------------------|
+| `mise run scan`        | Scan all images, print CVE summary (no AWS)       |
+| `mise run scan:upload` | Scan + upload to DynamoDB (needs AWS credentials) |
+| `mise run web:dev`     | Dashboard dev server with hot reload              |
+| `mise run web:test`    | Dashboard tests (Vitest, no AWS access)           |
+| `mise run web:build`   | Type-check + build the dashboard to `web/dist/`   |
 
-`scan`/`scan:upload` wrap `scripts/scan-and-upload.sh`; `db:push` wraps
-`scripts/apply-schema.sh`. Scanning requires **Docker** running locally.
+Scanning requires **Docker**. Uploads need AWS credentials allowed to
+write to the table: GitHub Actions assume the
+`CONTAINER_IMAGE_SCANS_AWS_ROLE_TO_ASSUME` role via OIDC, locally use e.g.
+`AWS_PROFILE=my-aws`. No secrets are stored in this repo.
 
-Required env for uploads/migrations (loaded from AWS Parameter Store
-by `fnox exec`, which wraps the `scan:upload`, `db:push`, `web:dev`,
-and `web:build` tasks, when an AWS profile `my-aws` in `eu-central-1`
-is available, see `fnox.toml`; every secret is mandatory, CI included):
+### Verifying changes
 
-- `scan:upload`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-- `db:push`: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`,
-  `SUPABASE_DB_PASSWORD`
-
-### Verifying changes (no test suite)
-
-- Shell: `shellcheck scripts/*.sh` and
-  `shfmt --case-indent --indent 2 --space-redirects --diff scripts/`
-  (CI excludes `SC2317`).
+- Scanner: `mise run scan:test` (pytest - fake scanner reports and a fake
+  DynamoDB table, no Docker / AWS). Lint like MegaLinter (without the
+  project dependencies): `uvx ruff check`, `uvx ruff format --check`,
+  `uvx isort --check-only`, `uvx flake8`, `uvx pylint`, `uvx mypy`,
+  `uvx pyright`, `uvx bandit -c .bandit.yml` on `scripts/` and `tests/`.
+  CI runs the tests on every branch push touching the scanner
+  (`scanner-tests.yml`, not a required check).
+- Uploads without touching AWS: run
+  [DynamoDB Local](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html),
+  create the table (e.g. with the AWS CLI), and set
+  `AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000` (plus dummy
+  `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). `IMAGES_FILE` points
+  the script to a shorter image list.
+- Dashboard: `mise run web:test` (Vitest), `mise run web:build`
+  (svelte-check + tsc + build), and `npx prettier --check` for
+  formatting. CI runs the same on every branch push touching `web/`
+  (`web-tests.yml`, not a required check - do not merge a red run);
+  `deploy-web.yml` on `main` only type-checks, builds and deploys.
+  Against DynamoDB Local build or run it with
+  `VITE_DYNAMODB_ENDPOINT=http://localhost:8000` and test in a browser
+  without web security (DynamoDB Local's CORS answers do not satisfy the
+  AWS SDK).
 - Workflows: `actionlint` after editing any file in
   `.github/workflows/`.
 - Markdown: `rumdl <file>` (config `.rumdl.toml`) and `lychee .`
   (config `lychee.toml`) for links.
 
-## Supabase data access (important)
+## Data model
 
-- **Writes use PostgREST + curl with the `service_role` key**, not the
-  supabase CLI. The CLI only links/pushes migrations; it cannot
-  insert or select rows. See `upload_scan`/`upload_cves` in
-  `scripts/scan-and-upload.sh`.
-- The web app (when built) reads with the **anon** key; anon is
-  SELECT-only and safe to ship in the static site (enforced by RLS).
-- CVEs are uploaded in **batches of 100** to avoid payload limits.
-- Tables: `image_groups`, `container_images`, `scans`, `cves`
-  (`scans` cascades to `cves`). Schema, RLS, grants, seed data, and a
-  `pg_cron` 1-year retention job live in
-  `supabase/migrations/20250301000000_initial_schema.sql`.
+See [README.md](README.md#data-model). In short:
+
+- `pk = LATEST`, `sk = <group>#<vendor>#<scanner>` - one summary item per
+  image and scanner, overwritten by every scan; `cves_pk` points to its CVEs
+- `pk = CVES#<group>#<vendor>#<scanner>#<scanned_at>`,
+  `sk = <CVE ID>#<package>` - the CVEs of one scan, written **before**
+  the `LATEST` item
+- Every item has `expires_at` (TTL, two years)
 
 ### Adding or changing images
 
-`images.yml` is the source of truth, but it is **not auto-synced**.
-Changing it requires matching edits to `supabase/migrations/`,
-`supabase/schema.sql`, and the image table in `README.md` (the header
-comment in `images.yml` says the same). Migrations are append-only;
-add a new timestamped file rather than editing applied ones.
+Edit `images.yml` (source of truth, read by the scan script) and the
+image table in `README.md`. Structure: `<group>: {description, images:
+{<vendor>: {image, description}}}`. Use only rolling tags (`latest`,
+`alpine`, `slim`, ...) and no version numbers in the descriptions. No
+database change is needed. A changed image of the same group / vendor
+replaces its dashboard row; removed groups / vendors keep their `LATEST`
+items until the TTL deletes them.
 
 ## Conventions specific to this repo
 
-- **Bash** (`scripts/`): `#!/usr/bin/env bash`, `set -euo pipefail`,
-  UPPERCASE vars (including `local`), always quote `"${VAR}"`,
-  `function_name() {}` form, `die()` for fatal errors, `|| true` for
-  non-fatal commands, `# ── section ──` banner comments.
-- **SQL** (`supabase/`): start files with `/* tsqllint-disable */`,
-  UPPERCASE keywords, snake_case identifiers, `bigint GENERATED ALWAYS
-  AS IDENTITY PRIMARY KEY`, RLS on every table (public `SELECT`,
-  service-role `INSERT`), `ON CONFLICT ... DO NOTHING` for idempotent
-  seeds.
-- **Workflows**: runner `ubuntu-24.04-arm`; install tools via
+- **Python** (`scripts/`, `tests/`): Python from `.python-version`,
+  dependencies in `pyproject.toml` + `uv.lock` (add them with `uv add`),
+  run with `uv run --locked`. Type hints and docstrings everywhere, 79
+  character lines (flake8 / ruff / isort agree on it), `subprocess` only
+  with fixed argument lists (no shell, `# nosec B603`). Pure functions for
+  the data mapping, tested in `tests/` - add a test for every new
+  behavior.
+- **Web** (`web/`): Vite + Svelte 5 (runes) + TypeScript, scaffolded from
+  the official `create-vite` `svelte-ts` template. Data access and types
+  live in `src/lib/dynamodb.ts`. Render scanner data with Svelte `{...}`
+  expressions (escaped), never `{@html}`; link only `https://` URLs.
+  Prettier style (double quotes, semicolons). Package manager and runtime:
+  **Bun** (`bun.lock`, `web/bunfig.toml` runs scripts on Bun - keep it,
+  without it the scripts quietly run on Node.js). Vitest needs
+  `pool: "threads"` on Bun (the default process pool fails). Tests next
+  to the code (`*.test.ts`, Vitest + Svelte Testing Library + jsdom) with
+  the AWS SDK / `query` mocked - add a test for every new behavior.
+- **Workflows**: runner `ubuntu-26.04-arm`; install tools via
   `jdx/mise-action` (not Homebrew or `setup-node`); pin actions to
   full SHA with a `# vX.Y.Z` comment; `permissions: read-all` unless a
   job needs more.

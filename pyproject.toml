@@ -1,0 +1,47 @@
+[project]
+name = "container-image-scans"
+version = "0.0.0"
+description = "Scan container images with trivy and grype, store the CVEs in DynamoDB"
+requires-python = ">=3.15"
+dependencies = [
+  "boto3>=1.44.7",
+  "pyyaml>=6.0.3",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.2.0",
+]
+
+[tool.uv]
+# A script, not an installable package
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["scripts"]
+testpaths = ["tests"]
+
+# Linters (MegaLinter runs them without the project dependencies installed)
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint.isort]
+known-first-party = ["scan_and_upload"]
+
+[tool.isort]
+profile = "black"
+line_length = 79
+known_first_party = ["scan_and_upload"]
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.pyright]
+reportMissingImports = false
+reportMissingModuleSource = false
+
+[tool.pylint.format]
+max-line-length = 79
+
+[tool.pylint."messages control"]
+disable = ["import-error"]

@@ -38,6 +38,9 @@ JSON_JSONLINT_ARGUMENTS: --comments
 # Exclude devcontainer.json from JSON linting (VS Code extension format)
 JSON_JSONLINT_FILTER_REGEX_EXCLUDE: .devcontainer/devcontainer.json
 
+# Use Prettier for JavaScript formatting (web/ is a Vite + Svelte app) instead of standard
+JAVASCRIPT_DEFAULT_STYLE: prettier
+
 # Use rumdl as the default Markdown style (faster Rust-based alternative)
 MARKDOWN_DEFAULT_STYLE: rumdl
 
@@ -75,6 +78,9 @@ SPELL_LYCHEE_UNSECURED_ENV_VARIABLES:
 # Allow tflint (Terraform linter) to access GitHub token for plugin downloads
 TERRAFORM_TFLINT_UNSECURED_ENV_VARIABLES:
   - GITHUB_TOKEN
+
+# Use Prettier for TypeScript formatting (web/ is a Vite + Svelte app) instead of standard
+TYPESCRIPT_DEFAULT_STYLE: prettier
 
 # Prettier (TypeScript/JavaScript formatter) configuration
 TYPESCRIPT_PRETTIER_ARGUMENTS: --html-whitespace-sensitivity=ignore

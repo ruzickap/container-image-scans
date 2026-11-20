@@ -1,45 +1,157 @@
 ---
-# Changes here must also be applied to the Supabase migration files
-# (supabase/migrations/), supabase/schema.sql, and README.md (image
-# table). Use AI to edit this file so that all dependent files are
-# updated automatically.
-- name: python
-  description: "Python images (latest stable: 3.14)"
+# Container images to scan:
+#   group -> description + images -> vendor -> image + description
+# - The vendor key is the column name on the dashboard
+# - Only rolling tags (latest, alpine, slim, ...) - no version in the image
+#   name or the descriptions, so the list never goes stale
+# - scripts/scan-and-upload.sh reads this file directly; keep the image table
+#   in README.md in sync
+
+python:
+  description: Python interpreter
   images:
-    - docker.io/python:alpine
-    - gcr.io/distroless/python3-debian12:latest
-    - cgr.dev/chainguard/python:latest
-    - registry.access.redhat.com/ubi10/python-312-minimal:latest
-- name: node
-  description: "Node.js images (latest stable: 24)"
+    docker:
+      image: docker.io/python:alpine
+      description: Docker Official Image on Alpine Linux (musl)
+    docker-slim:
+      image: docker.io/python:slim
+      description: Docker Official Image on Debian (slim variant)
+    distroless:
+      image: gcr.io/distroless/python3:latest
+      description: Google distroless on Debian - no shell, no package manager
+    chainguard:
+      image: cgr.dev/chainguard/python:latest
+      description: Chainguard Image on Wolfi OS - minimal, no shell
+    hummingbird:
+      image: quay.io/hummingbird/python:latest
+      description: Red Hat Hardened Image (Project Hummingbird) - distroless
+
+node:
+  description: Node.js JavaScript runtime
   images:
-    - docker.io/node:24-alpine
-    - gcr.io/distroless/nodejs24-debian12:latest
-    - cgr.dev/chainguard/node:latest
-    - registry.access.redhat.com/ubi10/nodejs-24-minimal:latest
-- name: php
-  description: "PHP images (latest stable: 8.5)"
+    docker:
+      image: docker.io/node:alpine
+      description: Docker Official Image on Alpine Linux (musl)
+    docker-slim:
+      image: docker.io/node:slim
+      description: Docker Official Image on Debian (slim variant)
+    chainguard:
+      image: cgr.dev/chainguard/node:latest
+      description: Chainguard Image on Wolfi OS - minimal, no shell
+    hummingbird:
+      image: quay.io/hummingbird/nodejs:latest
+      description: Red Hat Hardened Image (Project Hummingbird) - distroless
+    suse:
+      image: registry.suse.com/bci/nodejs:latest
+      description: SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+
+php:
+  description: PHP interpreter
   images:
-    - docker.io/php:alpine
-    - cgr.dev/chainguard/php:latest
-    - registry.access.redhat.com/ubi10/php-83:latest
-- name: nginx
-  description: "Nginx images (latest stable: 1.28)"
+    docker:
+      image: docker.io/php:alpine
+      description: Docker Official Image on Alpine Linux (musl), PHP CLI
+    chainguard:
+      image: cgr.dev/chainguard/php:latest
+      description: Chainguard Image on Wolfi OS - minimal, no shell
+    hummingbird:
+      image: quay.io/hummingbird/php:latest
+      description: Red Hat Hardened Image (Project Hummingbird) - distroless
+    suse:
+      image: registry.suse.com/bci/php:latest
+      description: SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+
+nginx:
+  description: nginx web server and reverse proxy
   images:
-    - docker.io/nginx:alpine
-    - cgr.dev/chainguard/nginx:latest
-    - registry.access.redhat.com/ubi10/nginx-126:latest
-- name: ruby
-  description: "Ruby images (latest stable: 4.0)"
+    docker:
+      image: docker.io/nginx:alpine
+      description: Docker Official Image on Alpine Linux (mainline release)
+    chainguard:
+      image: cgr.dev/chainguard/nginx:latest
+      description: Chainguard Image on Wolfi OS - minimal, no shell
+    hummingbird:
+      image: quay.io/hummingbird/nginx:latest
+      description: Red Hat Hardened Image (Project Hummingbird) - distroless
+    suse:
+      image: registry.suse.com/suse/nginx:latest
+      description: SUSE application image on SUSE Linux Enterprise
+    ubuntu:
+      image: docker.io/ubuntu/nginx:latest
+      description: Canonical image on Ubuntu LTS
+
+ruby:
+  description: Ruby interpreter
   images:
-    - docker.io/ruby:alpine
-    - cgr.dev/chainguard/ruby:latest
-    - registry.access.redhat.com/ubi10/ruby-33:latest
-- name: base
-  description: "Base OS images"
+    docker:
+      image: docker.io/ruby:alpine
+      description: Docker Official Image on Alpine Linux (musl)
+    docker-slim:
+      image: docker.io/ruby:slim
+      description: Docker Official Image on Debian (slim variant)
+    chainguard:
+      image: cgr.dev/chainguard/ruby:latest
+      description: Chainguard Image on Wolfi OS - minimal, no shell
+    hummingbird:
+      image: quay.io/hummingbird/ruby:latest
+      description: Red Hat Hardened Image (Project Hummingbird) - distroless
+    suse:
+      image: registry.suse.com/bci/ruby:latest
+      description: SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+
+java:
+  description: Java runtime (OpenJDK distributions)
   images:
-    - docker.io/alpine:latest
-    - docker.io/debian:stable-slim
-    - docker.io/ubuntu:latest
-    - gcr.io/distroless/static:latest
-    - registry.access.redhat.com/ubi10-micro:latest
+    temurin:
+      image: docker.io/eclipse-temurin:latest
+      description: Eclipse Temurin JDK (Adoptium) - Docker Official Image on Ubuntu
+    corretto:
+      image: docker.io/amazoncorretto:latest
+      description: Amazon Corretto JDK - Amazon's OpenJDK build
+    chainguard:
+      image: cgr.dev/chainguard/jre:latest
+      description: Chainguard JRE on Wolfi OS - minimal, no shell
+    hummingbird:
+      image: quay.io/hummingbird/openjdk:latest
+      description: Red Hat Hardened Image (Project Hummingbird) - distroless
+    suse:
+      image: registry.suse.com/bci/openjdk:latest
+      description: SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+
+dotnet:
+  description: ASP.NET Core runtime
+  images:
+    microsoft:
+      image: mcr.microsoft.com/dotnet/aspnet:latest
+      description: Microsoft official image on Debian
+    chainguard:
+      image: cgr.dev/chainguard/aspnet-runtime:latest
+      description: Chainguard Image on Wolfi OS - minimal, no shell
+    hummingbird:
+      image: quay.io/hummingbird/aspnet-runtime:latest
+      description: Red Hat Hardened Image (Project Hummingbird) - distroless
+
+base:
+  description: Minimal base OS images
+  images:
+    alpine:
+      image: docker.io/alpine:latest
+      description: Alpine Linux - Docker Official Image (musl, BusyBox)
+    debian:
+      image: docker.io/debian:stable-slim
+      description: Debian stable - Docker Official Image (slim variant)
+    ubuntu:
+      image: docker.io/ubuntu:latest
+      description: Ubuntu LTS - Docker Official Image
+    amazonlinux:
+      image: public.ecr.aws/amazonlinux/amazonlinux:latest
+      description: Amazon Linux - official image from Amazon ECR Public
+    distroless:
+      image: gcr.io/distroless/static:latest
+      description: Google distroless static - for static binaries, no libc
+    chainguard:
+      image: cgr.dev/chainguard/static:latest
+      description: Chainguard static on Wolfi OS - for static binaries
+    hummingbird:
+      image: quay.io/hummingbird/core-runtime:latest
+      description: Red Hat Hardened Image (Project Hummingbird) - minimal runtime
