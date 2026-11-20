@@ -2,9 +2,9 @@
 name: nightly-scans
 
 on:
-  schedule:
-    # Run every day at midnight UTC
-    - cron: "0 0 * * *"
+  # schedule:
+  #   # Run every day at midnight UTC
+  #   - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions: read-all
