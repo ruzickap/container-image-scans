@@ -4,7 +4,7 @@
 # - The vendor key is the column name on the dashboard
 # - Only rolling tags (latest, alpine, slim, ...) - no version in the image
 #   name or the descriptions, so the list never goes stale
-# - scripts/scan-and-upload.sh reads this file directly; keep the image table
+# - scripts/scan_and_upload.py reads this file directly; keep the image tree
 #   in README.md in sync
 
 python:

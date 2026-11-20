@@ -55,49 +55,65 @@ php:
       description: Chainguard Image on Wolfi OS - minimal, no shell
 ```
 
-| Group  | Vendor      | Image                                           | Description                                                      |
-|--------|-------------|-------------------------------------------------|------------------------------------------------------------------|
-| python | docker      | `docker.io/python:alpine`                       | Docker Official Image on Alpine Linux (musl)                     |
-| python | docker-slim | `docker.io/python:slim`                         | Docker Official Image on Debian (slim variant)                   |
-| python | distroless  | `gcr.io/distroless/python3:latest`              | Google distroless on Debian - no shell, no package manager       |
-| python | chainguard  | `cgr.dev/chainguard/python:latest`              | Chainguard Image on Wolfi OS - minimal, no shell                 |
-| python | hummingbird | `quay.io/hummingbird/python:latest`             | Red Hat Hardened Image (Project Hummingbird) - distroless        |
-| node   | docker      | `docker.io/node:alpine`                         | Docker Official Image on Alpine Linux (musl)                     |
-| node   | docker-slim | `docker.io/node:slim`                           | Docker Official Image on Debian (slim variant)                   |
-| node   | chainguard  | `cgr.dev/chainguard/node:latest`                | Chainguard Image on Wolfi OS - minimal, no shell                 |
-| node   | hummingbird | `quay.io/hummingbird/nodejs:latest`             | Red Hat Hardened Image (Project Hummingbird) - distroless        |
-| node   | suse        | `registry.suse.com/bci/nodejs:latest`           | SUSE Base Container Image (BCI) on SUSE Linux Enterprise         |
-| php    | docker      | `docker.io/php:alpine`                          | Docker Official Image on Alpine Linux (musl), PHP CLI            |
-| php    | chainguard  | `cgr.dev/chainguard/php:latest`                 | Chainguard Image on Wolfi OS - minimal, no shell                 |
-| php    | hummingbird | `quay.io/hummingbird/php:latest`                | Red Hat Hardened Image (Project Hummingbird) - distroless        |
-| php    | suse        | `registry.suse.com/bci/php:latest`              | SUSE Base Container Image (BCI) on SUSE Linux Enterprise         |
-| nginx  | docker      | `docker.io/nginx:alpine`                        | Docker Official Image on Alpine Linux (mainline release)         |
-| nginx  | chainguard  | `cgr.dev/chainguard/nginx:latest`               | Chainguard Image on Wolfi OS - minimal, no shell                 |
-| nginx  | hummingbird | `quay.io/hummingbird/nginx:latest`              | Red Hat Hardened Image (Project Hummingbird) - distroless        |
-| nginx  | suse        | `registry.suse.com/suse/nginx:latest`           | SUSE application image on SUSE Linux Enterprise                  |
-| nginx  | ubuntu      | `docker.io/ubuntu/nginx:latest`                 | Canonical image on Ubuntu LTS                                    |
-| ruby   | docker      | `docker.io/ruby:alpine`                         | Docker Official Image on Alpine Linux (musl)                     |
-| ruby   | docker-slim | `docker.io/ruby:slim`                           | Docker Official Image on Debian (slim variant)                   |
-| ruby   | chainguard  | `cgr.dev/chainguard/ruby:latest`                | Chainguard Image on Wolfi OS - minimal, no shell                 |
-| ruby   | hummingbird | `quay.io/hummingbird/ruby:latest`               | Red Hat Hardened Image (Project Hummingbird) - distroless        |
-| ruby   | suse        | `registry.suse.com/bci/ruby:latest`             | SUSE Base Container Image (BCI) on SUSE Linux Enterprise         |
-| java   | temurin     | `docker.io/eclipse-temurin:latest`              | Eclipse Temurin JDK (Adoptium) - Docker Official Image on Ubuntu |
-| java   | corretto    | `docker.io/amazoncorretto:latest`               | Amazon Corretto JDK - Amazon's OpenJDK build                     |
-| java   | chainguard  | `cgr.dev/chainguard/jre:latest`                 | Chainguard JRE on Wolfi OS - minimal, no shell                   |
-| java   | hummingbird | `quay.io/hummingbird/openjdk:latest`            | Red Hat Hardened Image (Project Hummingbird) - distroless        |
-| java   | suse        | `registry.suse.com/bci/openjdk:latest`          | SUSE Base Container Image (BCI) on SUSE Linux Enterprise         |
-| dotnet | microsoft   | `mcr.microsoft.com/dotnet/aspnet:latest`        | Microsoft official image on Debian                               |
-| dotnet | chainguard  | `cgr.dev/chainguard/aspnet-runtime:latest`      | Chainguard Image on Wolfi OS - minimal, no shell                 |
-| dotnet | hummingbird | `quay.io/hummingbird/aspnet-runtime:latest`     | Red Hat Hardened Image (Project Hummingbird) - distroless        |
-| base   | alpine      | `docker.io/alpine:latest`                       | Alpine Linux - Docker Official Image (musl, BusyBox)             |
-| base   | debian      | `docker.io/debian:stable-slim`                  | Debian stable - Docker Official Image (slim variant)             |
-| base   | ubuntu      | `docker.io/ubuntu:latest`                       | Ubuntu LTS - Docker Official Image                               |
-| base   | amazonlinux | `public.ecr.aws/amazonlinux/amazonlinux:latest` | Amazon Linux - official image from Amazon ECR Public             |
-| base   | distroless  | `gcr.io/distroless/static:latest`               | Google distroless static - for static binaries, no libc          |
-| base   | chainguard  | `cgr.dev/chainguard/static:latest`              | Chainguard static on Wolfi OS - for static binaries              |
-| base   | hummingbird | `quay.io/hummingbird/core-runtime:latest`       | Red Hat Hardened Image (Project Hummingbird) - minimal runtime   |
+```text
+images.yml
++-- python - Python interpreter
+|   +-- docker      docker.io/python:alpine                       # Docker Official Image on Alpine Linux (musl)
+|   +-- docker-slim docker.io/python:slim                         # Docker Official Image on Debian (slim variant)
+|   +-- distroless  gcr.io/distroless/python3:latest              # Google distroless on Debian - no shell, no package manager
+|   +-- chainguard  cgr.dev/chainguard/python:latest              # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/python:latest             # Red Hat Hardened Image (Project Hummingbird) - distroless
+|
++-- node - Node.js JavaScript runtime
+|   +-- docker      docker.io/node:alpine                         # Docker Official Image on Alpine Linux (musl)
+|   +-- docker-slim docker.io/node:slim                           # Docker Official Image on Debian (slim variant)
+|   +-- chainguard  cgr.dev/chainguard/node:latest                # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/nodejs:latest             # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/bci/nodejs:latest           # SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+|
++-- php - PHP interpreter
+|   +-- docker      docker.io/php:alpine                          # Docker Official Image on Alpine Linux (musl), PHP CLI
+|   +-- chainguard  cgr.dev/chainguard/php:latest                 # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/php:latest                # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/bci/php:latest              # SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+|
++-- nginx - nginx web server and reverse proxy
+|   +-- docker      docker.io/nginx:alpine                        # Docker Official Image on Alpine Linux (mainline release)
+|   +-- chainguard  cgr.dev/chainguard/nginx:latest               # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/nginx:latest              # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/suse/nginx:latest           # SUSE application image on SUSE Linux Enterprise
+|   +-- ubuntu      docker.io/ubuntu/nginx:latest                 # Canonical image on Ubuntu LTS
+|
++-- ruby - Ruby interpreter
+|   +-- docker      docker.io/ruby:alpine                         # Docker Official Image on Alpine Linux (musl)
+|   +-- docker-slim docker.io/ruby:slim                           # Docker Official Image on Debian (slim variant)
+|   +-- chainguard  cgr.dev/chainguard/ruby:latest                # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/ruby:latest               # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/bci/ruby:latest             # SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+|
++-- java - Java runtime (OpenJDK distributions)
+|   +-- temurin     docker.io/eclipse-temurin:latest              # Eclipse Temurin JDK (Adoptium) - Docker Official Image on Ubuntu
+|   +-- corretto    docker.io/amazoncorretto:latest               # Amazon Corretto JDK - Amazon's OpenJDK build
+|   +-- chainguard  cgr.dev/chainguard/jre:latest                 # Chainguard JRE on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/openjdk:latest            # Red Hat Hardened Image (Project Hummingbird) - distroless
+|   +-- suse        registry.suse.com/bci/openjdk:latest          # SUSE Base Container Image (BCI) on SUSE Linux Enterprise
+|
++-- dotnet - ASP.NET Core runtime
+|   +-- microsoft   mcr.microsoft.com/dotnet/aspnet:latest        # Microsoft official image on Debian
+|   +-- chainguard  cgr.dev/chainguard/aspnet-runtime:latest      # Chainguard Image on Wolfi OS - minimal, no shell
+|   +-- hummingbird quay.io/hummingbird/aspnet-runtime:latest     # Red Hat Hardened Image (Project Hummingbird) - distroless
+|
++-- base - Minimal base OS images
+    +-- alpine      docker.io/alpine:latest                       # Alpine Linux - Docker Official Image (musl, BusyBox)
+    +-- debian      docker.io/debian:stable-slim                  # Debian stable - Docker Official Image (slim variant)
+    +-- ubuntu      docker.io/ubuntu:latest                       # Ubuntu LTS - Docker Official Image
+    +-- amazonlinux public.ecr.aws/amazonlinux/amazonlinux:latest # Amazon Linux - official image from Amazon ECR Public
+    +-- distroless  gcr.io/distroless/static:latest               # Google distroless static - for static binaries, no libc
+    +-- chainguard  cgr.dev/chainguard/static:latest              # Chainguard static on Wolfi OS - for static binaries
+    +-- hummingbird quay.io/hummingbird/core-runtime:latest       # Red Hat Hardened Image (Project Hummingbird) - minimal runtime
+```
 
-Keep this table in sync with `images.yml`.
+Keep this tree in sync with `images.yml`.
 
 ## Prerequisites
 
