@@ -141,21 +141,16 @@ describe("App", () => {
     expect(within(cves).getByText("<b>CVE-1</b>")).toBeInTheDocument();
   });
 
-  it("shows only the last clicked image when an earlier answer comes later", async () => {
-    let answerSlow: () => void = () => {};
+  // Images a and b: the CVE query of a answers with "answerA" (decided by
+  // the test), b answers at once. Clicks a, then b, and waits for b.
+  async function clickAThenB(answerA: Promise<Cve[]>): Promise<void> {
     query.mockImplementation(async (pk: string) => {
       if (pk === "LATEST") {
         return [scan("a", "x", "trivy"), scan("b", "y", "trivy")];
       }
-      if (pk === "CVES#a#x#trivy") {
-        return await new Promise((resolve) => {
-          answerSlow = () => resolve([cve("CVE-SLOW", "HIGH")]);
-        });
-      }
-      return [cve("CVE-FAST", "LOW")];
+      return pk === "CVES#a#x#trivy" ? await answerA : [cve("CVE-FAST", "LOW")];
     });
     render(App);
-
     await userEvent.click(
       await screen.findByRole("button", { name: "docker.io/a:x" }),
     );
@@ -163,8 +158,13 @@ describe("App", () => {
       screen.getByRole("button", { name: "docker.io/b:y" }),
     );
     expect(await screen.findByText("CVE-FAST")).toBeInTheDocument();
+  }
 
-    answerSlow();
+  it("shows only the last clicked image when an earlier answer comes later", async () => {
+    let answerSlow: (cves: Cve[]) => void = () => {};
+    await clickAThenB(new Promise((resolve) => (answerSlow = resolve)));
+
+    answerSlow([cve("CVE-SLOW", "HIGH")]);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(screen.queryByText("CVE-SLOW")).not.toBeInTheDocument();
@@ -174,29 +174,10 @@ describe("App", () => {
   });
 
   it("ignores the error of an earlier click when it comes later", async () => {
-    let failSlow: () => void = () => {};
-    query.mockImplementation(async (pk: string) => {
-      if (pk === "LATEST") {
-        return [scan("a", "x", "trivy"), scan("b", "y", "trivy")];
-      }
-      if (pk === "CVES#a#x#trivy") {
-        return await new Promise((_, reject) => {
-          failSlow = () => reject(new Error("ThrottlingException"));
-        });
-      }
-      return [cve("CVE-FAST", "LOW")];
-    });
-    render(App);
+    let failSlow: (error: Error) => void = () => {};
+    await clickAThenB(new Promise((_, reject) => (failSlow = reject)));
 
-    await userEvent.click(
-      await screen.findByRole("button", { name: "docker.io/a:x" }),
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: "docker.io/b:y" }),
-    );
-    expect(await screen.findByText("CVE-FAST")).toBeInTheDocument();
-
-    failSlow();
+    failSlow(new Error("ThrottlingException"));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(screen.queryByText(/ThrottlingException/)).not.toBeInTheDocument();
