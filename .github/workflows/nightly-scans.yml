@@ -9,6 +9,12 @@ on:
 
 permissions: read-all
 
+# One run at a time (schedule + manual) - an older run must not overwrite the
+# LATEST items of a newer one
+concurrency:
+  group: nightly-scans
+  cancel-in-progress: false
+
 jobs:
   nightly-scans:
     name: Scan container images
