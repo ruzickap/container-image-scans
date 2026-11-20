@@ -19,7 +19,8 @@ jobs:
   nightly-scans:
     name: Scan container images
     runs-on: ubuntu-26.04-arm
-    timeout-minutes: 180
+    # Max. 1 hour - the OIDC credentials (default session) are valid 1 hour
+    timeout-minutes: 60
     permissions:
       contents: read # Required to checkout repository.
       id-token: write # Required to assume AWS role via OIDC.
@@ -35,8 +36,6 @@ jobs:
         with:
           role-to-assume: ${{ secrets.CONTAINER_IMAGE_SCANS_AWS_ROLE_TO_ASSUME }}
           aws-region: eu-central-1
-          # Credentials valid for the whole run (timeout-minutes), the role allows max. 3 hours
-          role-duration-seconds: 10800
 
       - name: Install the scanner tools via mise
         uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8

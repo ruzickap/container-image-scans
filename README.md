@@ -222,9 +222,10 @@ credentials, DynamoDB Local accepts any).
 #### Nightly Scans (`.github/workflows/nightly-scans.yml`)
 
 - **Schedule**: every day at 00:00 UTC (or manual)
-- Assumes the AWS role via OIDC (`CONTAINER_IMAGE_SCANS_AWS_ROLE_TO_ASSUME`)
-  for 3 hours (`role-duration-seconds`, the role allows max. 3 hours) - the
-  credentials must last the whole run (`timeout-minutes: 180`)
+- Assumes the AWS role via OIDC (`CONTAINER_IMAGE_SCANS_AWS_ROLE_TO_ASSUME`),
+  the credentials are valid 1 hour - so the run is limited to 1 hour
+  (`timeout-minutes: 60`). Images not scanned in time keep their previous
+  results
 - Installs trivy, grype, and uv via mise (uv installs Python and the
   scanner dependencies)
 - Pulls each image, scans it with both scanners, writes the results to
