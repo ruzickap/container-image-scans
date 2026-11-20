@@ -10,6 +10,7 @@ variables:
   AWS_REGION      Region of the table (default: eu-central-1)
   DYNAMODB_TABLE  Table name (default: container-image-scans)
   IMAGES_FILE     Image list (default: images.yml in the repository root)
+  GITHUB_STEP_SUMMARY  Markdown summary file (set by GitHub Actions)
 """
 
 import argparse
@@ -294,24 +295,29 @@ def summary_line(scanner: str, cves: list[CVE] | None) -> str:
     )
 
 
-def print_summary(rows: list[tuple[str, str, dict[str, int]]]) -> None:
-    """Print the final table of all scans."""
+def print_summary(
+    rows: list[tuple[str, str, dict[str, int]]], failures: list[str]
+) -> None:
+    """Print the Markdown summary, also to the GitHub Actions job summary."""
     names = ("total", *(severity.lower() for severity in SEVERITIES))
-    table = [
-        ("IMAGE", "SCANNER", "TOTAL", "CRIT", "HIGH", "MED", "LOW"),
+    lines = [
+        "## Container image scans\n",
+        "| Image | Scanner | Total | Critical | High | Medium | Low |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
         *(
-            (image, scanner, *(str(counts[name]) for name in names))
+            f"| `{image}` | {scanner} | "
+            + " | ".join(str(counts[name]) for name in names)
+            + " |"
             for image, scanner, counts in rows
         ),
+        *(["", "### Failed", ""] if failures else []),
+        *(f"- ❌ {failure}" for failure in failures),
     ]
-    width = max(len(line[0]) for line in table)
-    table.insert(1, ("-" * width, "-" * 7, "-" * 5, *["----"] * 4))
-    print(f"\n{'=' * 80}\nSummary\n{'=' * 80}\n")
-    for image, scanner, total, *severities in table:
-        print(
-            f"{image:<{width}}  {scanner:<7}  {total:>5}  "
-            + "  ".join(f"{value:>4}" for value in severities)
-        )
+    text = "\n".join(lines) + "\n"
+    print(f"\n{text}")
+    if path := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(path, "a", encoding="utf-8") as summary:
+            summary.write(text)
 
 
 def open_table() -> Any:
@@ -418,11 +424,8 @@ def main() -> int:
         if os.environ.get("CI") == "true":
             run(["docker", "rmi", image.image])
 
-    print_summary(rows)
-    if failures:
-        print("\n" + "\n".join(f"❌ Failed: {f}" for f in failures))
-        return 1
-    return 0
+    print_summary(rows, failures)
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

@@ -1,3 +1,8 @@
+:root {
+  /* Light or dark, as the OS / browser is set */
+  color-scheme: light dark;
+}
+
 body {
   font-family: system-ui, sans-serif;
   margin: 2rem;
@@ -10,7 +15,7 @@ table {
 
 th,
 td {
-  border: 1px solid #ccc;
+  border: 1px solid light-dark(#ccc, #555);
   padding: 0.25rem 0.5rem;
   text-align: left;
   vertical-align: top;
@@ -18,7 +23,7 @@ td {
 
 button {
   all: unset;
-  color: #0645ad;
+  color: light-dark(#0645ad, #8ab4f8);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -28,5 +33,5 @@ button:focus-visible {
 }
 
 small {
-  color: #555;
+  color: light-dark(#555, #aaa);
 }

@@ -383,6 +383,8 @@ def fake_main(
         return sau.trivy_cves(TRIVY_REPORT)
 
     monkeypatch.setenv("IMAGES_FILE", str(images_file))
+    # Never the job summary of the CI run of these tests
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "summary.md"))
     monkeypatch.setattr("sys.argv", ["scan_and_upload.py", "upload"])
     monkeypatch.setattr(sau, "run", fake_run)
     monkeypatch.setattr(sau, "scan", fake_scan)
@@ -413,10 +415,13 @@ def test_main_uploads_good_scans_and_reports_failures(
     assert table.loaded
     latest = [item["sk"] for item in table.items if item["pk"] == "LATEST"]
     assert latest == ["base#good#trivy", "base#half#trivy"]
-    output = capsys.readouterr().out
-    assert "❌ Failed: broken:latest (pull)" in output
-    assert "❌ Failed: good:latest (grype upload)" in output
-    assert "❌ Failed: half:latest (grype)" in output
+    summary = (tmp_path / "summary.md").read_text(encoding="utf-8")
+    assert summary in capsys.readouterr().out
+    assert "| `good:latest` | trivy | " in summary
+    assert "| `half:latest` | trivy | " in summary
+    assert "- ❌ broken:latest (pull)" in summary
+    assert "- ❌ good:latest (grype upload)" in summary
+    assert "- ❌ half:latest (grype)" in summary
 
 
 def test_main_stops_when_a_database_update_fails(
