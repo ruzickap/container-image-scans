@@ -36,7 +36,16 @@
   async function showCves (scan: Scan) {
     const click = ++lastClick
     status = `Loading CVEs of ${scan.image} (${scan.scanner}) ...`
-    const items = await query<Cve>(scan.cves_pk)
+    let items: Cve[]
+    try {
+      items = await query<Cve>(scan.cves_pk)
+    } catch (error) {
+      // An error of an earlier click must not replace the last click result
+      if (click === lastClick) {
+        showError(error)
+      }
+      return
+    }
     if (click !== lastClick) {
       return
     }

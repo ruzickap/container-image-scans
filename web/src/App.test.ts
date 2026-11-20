@@ -172,4 +172,52 @@ describe("App", () => {
       "b / y",
     );
   });
+
+  it("ignores the error of an earlier click when it comes later", async () => {
+    let failSlow: () => void = () => {};
+    query.mockImplementation(async (pk: string) => {
+      if (pk === "LATEST") {
+        return [scan("a", "x", "trivy"), scan("b", "y", "trivy")];
+      }
+      if (pk === "CVES#a#x#trivy") {
+        return await new Promise((_, reject) => {
+          failSlow = () => reject(new Error("ThrottlingException"));
+        });
+      }
+      return [cve("CVE-FAST", "LOW")];
+    });
+    render(App);
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "docker.io/a:x" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "docker.io/b:y" }),
+    );
+    expect(await screen.findByText("CVE-FAST")).toBeInTheDocument();
+
+    failSlow();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.queryByText(/ThrottlingException/)).not.toBeInTheDocument();
+    expect(screen.getByText("CVE-FAST")).toBeInTheDocument();
+  });
+
+  it("shows the error of the last click", async () => {
+    query.mockImplementation(async (pk: string) => {
+      if (pk === "LATEST") {
+        return [scan("a", "x", "trivy")];
+      }
+      throw new Error("ThrottlingException");
+    });
+    render(App);
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "docker.io/a:x" }),
+    );
+
+    expect(
+      await screen.findByText("Error: ThrottlingException"),
+    ).toBeInTheDocument();
+  });
 });
