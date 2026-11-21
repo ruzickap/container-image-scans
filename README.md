@@ -310,6 +310,7 @@ container-image-scans/
 |       +-- scanner-tests.yml         # Test the scanner on push
 |       +-- web-tests.yml             # Test + build the dashboard on push
 +-- scripts/
+|   +-- install-agent-skills.sh       # Install agent skills to .agents/skills
 |   +-- scan_and_upload.py            # Scan images & upload to DynamoDB
 +-- tests/
 |   +-- test_scan_and_upload.py       # Scanner tests (fake scanners / table)
