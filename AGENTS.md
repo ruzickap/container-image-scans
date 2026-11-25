@@ -99,9 +99,15 @@ See [README.md](README.md#data-model). In short:
 
 - `pk = LATEST`, `sk = <group>#<vendor>#<scanner>` - one summary item per
   image and scanner, overwritten by every scan; `cves_pk` points to its CVEs
+- `pk = HISTORY#<group>`, `sk = <scanned_at>#<vendor>#<scanner>` - the
+  summary of every scan (dashboard charts, raw data per day)
 - `pk = CVES#<group>#<vendor>#<scanner>#<scanned_at>`,
   `sk = <CVE ID>#<package>` - the CVEs of one scan, written **before**
-  the `LATEST` item
+  the `HISTORY` and `LATEST` items
+- `pk = LIFECYCLE#<group>#<vendor>#<scanner>`, `sk = <CVE ID>#<package>` -
+  `first_seen` / `fix_seen` / `removed_at` of every CVE of an image,
+  only changes are written (`lifecycle_items()`)
+- `pk = DAYS`, `sk = <YYYY-MM-DD>` - the days with an upload run
 - Every item has `expires_at` (TTL, two years)
 
 ### Adding or changing images
