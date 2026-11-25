@@ -29,6 +29,7 @@ from typing import Any
 
 import boto3
 import yaml
+from boto3.dynamodb.conditions import Key
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -128,28 +129,55 @@ def grype_cves(report: dict[str, Any]) -> list[CVE]:
     return unique(entries)
 
 
+def top_fixable(cves: list[CVE], limit: int = 8) -> list[CVE]:
+    """The worst CVEs with a fixed version (for the dashboard popup).
+
+    Stored in the LATEST item, so the popup reads no CVE partition.
+    """
+    order = (*SEVERITIES, "UNKNOWN")
+    fixable = sorted(
+        (cve for cve in cves if cve["fixed_version"]),
+        key=lambda cve: (
+            order.index(cve["severity"]),
+            cve["cve_id"],
+            cve["package_name"],
+        ),
+    )
+    keep = (
+        "cve_id",
+        "severity",
+        "package_name",
+        "installed_version",
+        "fixed_version",
+    )
+    return [{key: cve[key] for key in keep} for cve in fixable[:limit]]
+
+
 def severity_counts(cves: list[CVE]) -> dict[str, int]:
-    """Count the CVEs: total + per severity."""
+    """Count the CVEs: total, per severity and fixable (fix available)."""
     counts = {"total": len(cves)}
     for severity in SEVERITIES:
         counts[severity.lower()] = sum(
             1 for cve in cves if cve["severity"] == severity
         )
+    counts["fixable"] = sum(1 for cve in cves if cve["fixed_version"])
     return counts
 
 
 def scan_items(
     image: Image,
     scanner: str,
-    info: dict[str, str],
+    info: dict[str, Any],
     cves: list[CVE],
     scanned_at: str,
 ) -> list[dict[str, Any]]:
-    """Build the DynamoDB items of one scan: CVEs first, LATEST last.
+    """Build the DynamoDB items of one scan: CVEs, HISTORY, LATEST last.
 
-    The CVEs get their own partition, the LATEST item points to it (see
+    The CVEs get their own partition, HISTORY and LATEST point to it (see
     write_items()). LATEST is keyed by group + vendor (not the image name),
     so a new image of the same vendor replaces the old dashboard row.
+    HISTORY#<group> keeps the summary of every scan of the group, sorted
+    by time - the dashboard charts read it.
     """
     expires_at = int(datetime.fromisoformat(scanned_at).timestamp()) + (
         TTL_SECONDS
@@ -166,42 +194,153 @@ def scan_items(
         }
         for cve in cves
     ]
+    summary = {
+        "group": image.group,
+        "vendor": image.vendor,
+        "image": image.image,
+        "scanner": scanner,
+        "scanner_version": info["version"],
+        "scanner_db": info["db"],
+        "image_digest": info["digest"],
+        "image_size": info["size"],
+        "image_created": info["created"],
+        "scanned_at": scanned_at,
+        "cves_pk": cves_pk,
+        **{f"cve_{name}": count for name, count in counts.items()},
+        "expires_at": expires_at,
+    }
+    items.append(
+        {
+            "pk": f"HISTORY#{image.group}",
+            "sk": f"{scanned_at}#{image.vendor}#{scanner}",
+            **summary,
+        }
+    )
     items.append(
         {
             "pk": "LATEST",
             "sk": key,
-            "group": image.group,
+            **summary,
             "group_description": image.group_description,
-            "vendor": image.vendor,
-            "image": image.image,
             "image_description": image.description,
-            "scanner": scanner,
-            "scanner_version": info["version"],
-            "scanner_db": info["db"],
-            "image_digest": info["digest"],
-            "scanned_at": scanned_at,
-            "cves_pk": cves_pk,
-            **{f"cve_{name}": count for name, count in counts.items()},
-            "expires_at": expires_at,
+            "top_fixable": top_fixable(cves),
         }
     )
     return items
 
 
+def lifecycle_items(
+    latest: dict[str, Any], previous: list[dict[str, Any]], cves: list[CVE]
+) -> list[dict[str, Any]]:
+    """Changed LIFECYCLE items of one image + scanner after a scan.
+
+    LIFECYCLE#<group>#<vendor>#<scanner> has one item per CVE + package
+    ever found: first_seen (first scan with it), fix_seen (first scan with
+    a fixed version) and removed_at (first scan without it). Only new and
+    changed items are returned - most scans write none. A CVE found again
+    after its removal starts a new lifecycle, the finished one is kept as
+    <CVE ID>#<package>#<removed_at>.
+    """
+    pk = f"LIFECYCLE#{latest['sk']}"
+    scanned_at = latest["scanned_at"]
+    expires_at = latest["expires_at"]
+    known = {item["sk"]: item for item in previous}
+    current = {f"{cve['cve_id']}#{cve['package_name']}": cve for cve in cves}
+    changed: list[dict[str, Any]] = []
+    for sk, cve in current.items():
+        old = known.get(sk)
+        if old is not None and "removed_at" in old:
+            changed.append(
+                {
+                    **old,
+                    "sk": f"{sk}#{old['removed_at']}",
+                    "expires_at": expires_at,
+                }
+            )
+        if old is None or "removed_at" in old:
+            item = {
+                "pk": pk,
+                "sk": sk,
+                "cve_id": cve["cve_id"],
+                "package_name": cve["package_name"],
+                "severity": cve["severity"],
+                "installed_version": cve["installed_version"],
+                "fixed_version": cve["fixed_version"],
+                "first_seen": scanned_at,
+            }
+            if cve["fixed_version"]:
+                item["fix_seen"] = scanned_at
+        elif cve["fixed_version"] and "fix_seen" not in old:
+            item = {
+                **old,
+                "fixed_version": cve["fixed_version"],
+                "fix_seen": scanned_at,
+            }
+        else:
+            continue
+        # shortcut: unchanged open CVEs keep their TTL, after two years
+        # they restart as new - refresh expires_at if that matters
+        changed.append({**item, "expires_at": expires_at})
+    changed.extend(
+        {**old, "removed_at": scanned_at, "expires_at": expires_at}
+        for sk, old in known.items()
+        if sk not in current and "removed_at" not in old
+    )
+    return changed
+
+
 def write_items(table: Any, items: list[dict[str, Any]]) -> None:
-    """Write the CVEs of one scan, then its LATEST item (the last one).
+    """Write the CVEs of one scan, then its HISTORY and LATEST items.
 
     batch_writer() sends 25 items per request and resends throttled
-    (unprocessed) items - at the end of its queue, so out of order. LATEST
-    is written only after all CVEs are stored: the dashboard never sees a
-    half-written scan. The client retries throttling errors (adaptive
-    retry mode, see main()).
+    (unprocessed) items - at the end of its queue, so out of order. HISTORY
+    and LATEST are written only after all CVEs are stored: the dashboard
+    never sees a half-written scan. The client retries throttling errors
+    (adaptive retry mode, see main()).
     """
-    *cves, latest = items
+    *cves, history, latest = items
     with table.batch_writer() as batch:
         for item in cves:
             batch.put_item(Item=item)
+    table.put_item(Item=history)
     table.put_item(Item=latest)
+
+
+def write_day(table: Any, scanned_at: str) -> None:
+    """Add the day of a run to the DAYS partition (sk = YYYY-MM-DD).
+
+    The dashboard lists the days with scans from it (no Scan needed).
+    """
+    table.put_item(
+        Item={
+            "pk": "DAYS",
+            "sk": scanned_at[:10],
+            "expires_at": int(datetime.fromisoformat(scanned_at).timestamp())
+            + TTL_SECONDS,
+        }
+    )
+
+
+def query_partition(table: Any, pk: str) -> list[dict[str, Any]]:
+    """All items of one partition (Query returns max. 1 MB per page)."""
+    kwargs: dict[str, Any] = {"KeyConditionExpression": Key("pk").eq(pk)}
+    items: list[dict[str, Any]] = []
+    while True:
+        page = table.query(**kwargs)
+        items.extend(page.get("Items") or [])
+        if "LastEvaluatedKey" not in page:
+            return items
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+
+
+def upload(table: Any, items: list[dict[str, Any]], cves: list[CVE]) -> None:
+    """Write one scan (write_items()), then its CVE lifecycle changes."""
+    latest = items[-1]
+    previous = query_partition(table, f"LIFECYCLE#{latest['sk']}")
+    write_items(table, items)
+    with table.batch_writer() as batch:
+        for item in lifecycle_items(latest, previous, cves):
+            batch.put_item(Item=item)
 
 
 def run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -220,20 +359,27 @@ def read_report(path: Path) -> dict[str, Any]:
     return report if isinstance(report, dict) else {}
 
 
-def image_digest(image: str) -> str:
-    """Digest of a pulled image (sha256:...) or "unknown"."""
+def image_metadata(image: str) -> dict[str, Any]:
+    """Digest (sha256:... or "unknown"), size and creation of a pulled image.
+
+    size: uncompressed bytes (0 = unknown), created: ISO date ("" when
+    unknown, reproducible builds use 1970-01-01).
+    """
     result = run(
-        [
-            "docker",
-            "image",
-            "inspect",
-            "--format",
-            "{{index .RepoDigests 0}}",
-            image,
-        ]
+        ["docker", "image", "inspect", "--format", "{{json .}}", image]
     )
-    digest = result.stdout.strip().rpartition("@")[2]
-    return digest if result.returncode == 0 and digest else "unknown"
+    try:
+        data = json.loads(result.stdout) if result.returncode == 0 else {}
+    except ValueError:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    digest = str((data.get("RepoDigests") or [""])[0]).rpartition("@")[2]
+    return {
+        "digest": digest or "unknown",
+        "size": int(data.get("Size") or 0),
+        "created": str(data.get("Created") or ""),
+    }
 
 
 def scanner_info() -> dict[str, dict[str, str]]:
@@ -369,18 +515,24 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("command", choices=["scan", "upload"])
-    upload = parser.parse_args().command == "upload"
+    uploading = parser.parse_args().command == "upload"
 
     images = load_images(
         Path(os.environ.get("IMAGES_FILE") or REPO_ROOT / "images.yml")
     )
-    table = open_table() if upload else None
+    table = open_table() if uploading else None
     info = update_databases()
     scanned_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     print(f"👉 Images to scan: {len(images)}")
 
     rows: list[tuple[str, str, dict[str, int]]] = []
     failures: list[str] = []
+    if table is not None:
+        try:
+            write_day(table, scanned_at)
+        except (BotoCoreError, ClientError) as error:
+            print(f"ERROR: day upload failed: {error}", file=sys.stderr)
+            failures.append(f"day {scanned_at[:10]} (upload)")
     for number, image in enumerate(images, start=1):
         print(
             f"\n{'=' * 80}\n✴️ Scanning [{number}/{len(images)}]: "
@@ -389,8 +541,8 @@ def main() -> int:
         if not pull(image.image):
             failures.append(f"{image.image} (pull)")
             continue
-        digest = image_digest(image.image)
-        print(f"💡 Digest: {digest}")
+        metadata = image_metadata(image.image)
+        print(f"💡 Digest: {metadata['digest']}")
 
         with tempfile.TemporaryDirectory() as workdir:
             for scanner in ("trivy", "grype"):
@@ -405,15 +557,16 @@ def main() -> int:
                     continue
                 print(f"  Uploading {len(cves)} CVE records ...")
                 try:
-                    write_items(
+                    upload(
                         table,
                         scan_items(
                             image,
                             scanner,
-                            {**info[scanner], "digest": digest},
+                            {**info[scanner], **metadata},
                             cves,
                             scanned_at,
                         ),
+                        cves,
                     )
                 except (BotoCoreError, ClientError) as error:
                     # The other scans are still uploaded

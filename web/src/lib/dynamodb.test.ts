@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { query } from "./dynamodb";
+import { load, query } from "./dynamodb";
 
 // Fake DynamoDB client - no AWS or Cognito calls
 const send = vi.hoisted(() => vi.fn());
@@ -52,5 +52,37 @@ describe("query", () => {
     send.mockResolvedValueOnce({});
 
     expect(await query("CVES#none")).toEqual([]);
+  });
+
+  it("reads only the sort keys of a range", async () => {
+    send.mockResolvedValueOnce({ Items: [] });
+
+    await query("HISTORY#python", ["2026-11-01", "~"]);
+
+    expect(send.mock.calls[0][0].input).toMatchObject({
+      KeyConditionExpression: "pk = :pk AND sk BETWEEN :from AND :to",
+      ExpressionAttributeValues: {
+        ":pk": "HISTORY#python",
+        ":from": "2026-11-01",
+        ":to": "~",
+      },
+    });
+  });
+});
+
+describe("load", () => {
+  beforeEach(() => {
+    send.mockReset();
+  });
+
+  it("queries a partition once, but again after an error", async () => {
+    send
+      .mockRejectedValueOnce(new Error("ThrottlingException"))
+      .mockResolvedValueOnce({ Items: [{ sk: "1" }] });
+
+    await expect(load("CVES#cached")).rejects.toThrow("ThrottlingException");
+    expect(await load("CVES#cached")).toEqual([{ sk: "1" }]);
+    expect(await load("CVES#cached")).toEqual([{ sk: "1" }]);
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });

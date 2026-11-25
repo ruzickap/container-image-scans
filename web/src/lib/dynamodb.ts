@@ -8,18 +8,19 @@ const REGION = "eu-central-1";
 const TABLE = "container-image-scans";
 const IDENTITY_POOL_ID = "eu-central-1:52860e4f-1539-4b91-a8aa-a3862fa7cf65";
 
-// "LATEST" item - latest scan of one image (group + vendor) by one scanner
-export interface Scan {
+// "HISTORY#<group>" item - summary of one scan (sk: <scanned_at>#<vendor>#<scanner>)
+export interface History {
   sk: string;
   group: string;
-  group_description: string;
   vendor: string;
   image: string;
-  image_description: string;
   scanner: string;
   scanner_version: string;
   scanner_db: string;
   image_digest: string;
+  // Missing in scans before the dashboard redesign
+  image_size?: number;
+  image_created?: string;
   scanned_at: string;
   cves_pk: string;
   cve_total: number;
@@ -27,6 +28,29 @@ export interface Scan {
   cve_high: number;
   cve_medium: number;
   cve_low: number;
+  cve_fixable?: number;
+}
+
+// "LATEST" item - latest scan of one image (group + vendor) by one scanner
+export interface Scan extends History {
+  group_description: string;
+  image_description: string;
+  // Worst CVEs with a fixed version (missing in scans before the redesign)
+  top_fixable?: Omit<Cve, "sk" | "description" | "url">[];
+}
+
+// "LIFECYCLE#<group>#<vendor>#<scanner>" item - one CVE + package of an image over time
+export interface Lifecycle {
+  sk: string;
+  cve_id: string;
+  package_name: string;
+  severity: string;
+  installed_version: string;
+  fixed_version: string;
+  first_seen: string;
+  // First scan with a fixed version / first scan without the CVE
+  fix_seen?: string;
+  removed_at?: string;
 }
 
 // One CVE of one package found by one scan
@@ -53,16 +77,23 @@ const db = DynamoDBDocumentClient.from(
   }),
 );
 
-// All items of one partition - Query returns max. 1 MB per page
-export async function query<T>(pk: string): Promise<T[]> {
+// All items of one partition (optionally only sk between skRange) - Query returns max. 1 MB per page
+export async function query<T>(
+  pk: string,
+  skRange?: [string, string],
+): Promise<T[]> {
   const items: T[] = [];
   let startKey: Record<string, unknown> | undefined;
   do {
     const page = await db.send(
       new QueryCommand({
         TableName: TABLE,
-        KeyConditionExpression: "pk = :pk",
-        ExpressionAttributeValues: { ":pk": pk },
+        KeyConditionExpression: skRange
+          ? "pk = :pk AND sk BETWEEN :from AND :to"
+          : "pk = :pk",
+        ExpressionAttributeValues: skRange
+          ? { ":pk": pk, ":from": skRange[0], ":to": skRange[1] }
+          : { ":pk": pk },
         ExclusiveStartKey: startKey,
       }),
     );
@@ -70,4 +101,22 @@ export async function query<T>(pk: string): Promise<T[]> {
     startKey = page.LastEvaluatedKey;
   } while (startKey);
   return items;
+}
+
+// query() with a cache - the data changes once a day and the table has only 2 RCU
+const cache = new Map<string, Promise<unknown[]>>();
+
+export function load<T>(pk: string, skRange?: [string, string]): Promise<T[]> {
+  const key = JSON.stringify([pk, skRange]);
+  if (!cache.has(key)) {
+    // A failed query is tried again next time
+    cache.set(
+      key,
+      query<T>(pk, skRange).catch((error: unknown) => {
+        cache.delete(key);
+        throw error;
+      }),
+    );
+  }
+  return cache.get(key) as Promise<T[]>;
 }

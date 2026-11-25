@@ -149,15 +149,31 @@ One table, partition key `pk`, sort key `sk` (both strings). Every item
 has `expires_at` (epoch seconds) - DynamoDB TTL deletes it two years after
 the scan.
 
-| Item        | `pk`                                           | `sk`                         | Attributes                                                                                                                                                                                                                  |
-|-------------|------------------------------------------------|------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Latest scan | `LATEST`                                       | `<group>#<vendor>#<scanner>` | `group`, `group_description`, `vendor`, `image`, `image_description`, `scanner`, `scanner_version`, `scanner_db`, `image_digest`, `scanned_at`, `cves_pk`, `cve_total`, `cve_critical`, `cve_high`, `cve_medium`, `cve_low` |
-| CVE         | `CVES#<group>#<vendor>#<scanner>#<scanned_at>` | `<CVE ID>#<package>`         | `cve_id`, `severity`, `description`, `url`, `package_name`, `installed_version`, `fixed_version`                                                                                                                            |
+| Item        | `pk`                                           | `sk`                              | Attributes                                                                                                                                                                                                                                                                               |
+|-------------|------------------------------------------------|-----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Latest scan | `LATEST`                                       | `<group>#<vendor>#<scanner>`      | `group`, `group_description`, `vendor`, `image`, `image_description`, `scanner`, `scanner_version`, `scanner_db`, `image_digest`, `image_size`, `image_created`, `scanned_at`, `cves_pk`, `cve_total`, `cve_critical`, `cve_high`, `cve_medium`, `cve_low`, `cve_fixable`, `top_fixable` |
+| History     | `HISTORY#<group>`                              | `<scanned_at>#<vendor>#<scanner>` | Like the latest scan, without `group_description` and `image_description`                                                                                                                                                                                                                |
+| CVE         | `CVES#<group>#<vendor>#<scanner>#<scanned_at>` | `<CVE ID>#<package>`              | `cve_id`, `severity`, `description`, `url`, `package_name`, `installed_version`, `fixed_version`                                                                                                                                                                                         |
+| Lifecycle   | `LIFECYCLE#<group>#<vendor>#<scanner>`         | `<CVE ID>#<package>`              | `cve_id`, `severity`, `package_name`, `installed_version`, `fixed_version`, `first_seen` (first scan with the CVE), `fix_seen` (first scan with a fixed version), `removed_at` (first scan without the CVE)                                                                              |
+| Day         | `DAYS`                                         | `<YYYY-MM-DD>`                    | - (the days with scans, for the raw data day list)                                                                                                                                                                                                                                       |
 
-- The dashboard queries `pk = LATEST` for the overview and `pk = cves_pk`
-  for the CVEs of one scan
-- Each scan writes its CVEs to a new partition first and then overwrites
-  its `LATEST` item, so the dashboard never shows a half-written scan
+- `image_size` is the uncompressed size in bytes, `image_created` the
+  creation date of the image (`docker image inspect`), `cve_fixable` the
+  CVEs with a fixed version, `top_fixable` (`LATEST` only) the worst 8 of
+  them - the dashboard popup reads no CVE partition
+- The dashboard queries `pk = LATEST` for the overview, `HISTORY#<group>`
+  (sort key range = time range) for the charts and the raw data of a day,
+  `pk = cves_pk` for the CVEs of one scan and `LIFECYCLE#...` for how long
+  CVEs stay in an image and how fast fixes reach it
+- Each scan writes its CVEs to a new partition first, then its `HISTORY`
+  item and overwrites its `LATEST` item, so the dashboard never shows a
+  half-written scan. Then it compares the CVEs with the `LIFECYCLE`
+  partition and writes only new, newly fixable and removed CVEs. A CVE
+  found again starts a new lifecycle, the finished one is kept with the
+  sort key `<CVE ID>#<package>#<removed_at>`
+- Every upload run first adds its day to `DAYS`
+- `HISTORY`, `LIFECYCLE` and `DAYS` exist since the dashboard redesign -
+  older scans have only `LATEST` and `CVES` items
 - `LATEST` is keyed by group and vendor, not by the image name - a new
   image of the same vendor replaces the old row. Removed groups / vendors
   stay until the TTL deletes them
@@ -316,11 +332,14 @@ container-image-scans/
 |   +-- test_scan_and_upload.py       # Scanner tests (fake scanners / table)
 +-- web/                              # Dashboard (Vite + Svelte, GitHub Pages)
 |   +-- src/
-|   |   +-- lib/dynamodb.ts           # Cognito guest + DynamoDB queries, types
-|   |   +-- lib/dynamodb.test.ts      # Tests: paged Query (fake AWS client)
-|   |   +-- App.svelte                # Overview table + CVE list
-|   |   +-- App.test.ts               # Tests: rendering, sorting, clicks, safety
-|   |   +-- app.css                   # Global styles
+|   |   +-- components/               # Views (Overview, Compare, Image, Scanners, Raw data), charts
+|   |   +-- lib/data.ts               # Pure data helpers (merging, statistics, routes)
+|   |   +-- lib/data.test.ts          # Tests: data helpers
+|   |   +-- lib/dynamodb.ts           # Cognito guest + DynamoDB queries (cached), types
+|   |   +-- lib/dynamodb.test.ts      # Tests: paged Query, cache (fake AWS client)
+|   |   +-- App.svelte                # Header, tabs, routing (#/<tab>/<group>/<vendor>)
+|   |   +-- App.test.ts               # Tests: rendering, routing, filters, safety
+|   |   +-- app.css                   # Global styles (dark theme)
 |   |   +-- main.ts                   # Mounts the app
 |   |   +-- test-setup.ts             # Vitest setup (DOM matchers)
 |   +-- index.html                    # Vite entry page
