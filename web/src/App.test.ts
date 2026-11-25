@@ -149,6 +149,8 @@ describe("App", () => {
       "LIFECYCLE#python#docker#trivy": [
         {
           sk: "CVE-1#pkg",
+          cve_id: "CVE-1",
+          package_name: "pkg",
           first_seen: "2026-11-10T00:00:00Z",
         } as Lifecycle,
         {
@@ -243,6 +245,64 @@ describe("App", () => {
       "href",
       "#/image/python/docker",
     );
+  });
+
+  it("switches the image of an earlier day with the vendor", async () => {
+    location.hash = "#/image/python/docker/2026-11-18";
+    const old = (vendor: string, digest: string, at: string): History => ({
+      ...scan("python", vendor, "trivy"),
+      scanned_at: at,
+      image_digest: digest,
+      cves_pk: `CVES#${vendor}`,
+    });
+    data({
+      LATEST: [scan("python", "docker", "trivy"), scan("python", "x", "trivy")],
+      "HISTORY#python": [
+        old("docker", "sha256:docker", "2026-11-18T00:00:00Z"),
+        old("x", "sha256:x", "2026-11-18T00:00:00Z"),
+        old("x", "sha256:x0", "2026-11-17T00:00:00Z"),
+      ],
+    });
+    render(App);
+    expect(
+      await screen.findByText("docker pull docker.io/python@sha256:docker"),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("link", { name: "x" }));
+
+    expect(
+      await screen.findByText("docker pull docker.io/python@sha256:x"),
+    ).toBeInTheDocument();
+    // The day list is the history of the new vendor
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("combobox", { name: "Day" }))
+          .getAllByRole("option")
+          .map((option) => option.getAttribute("value")),
+      ).toContain("2026-11-17"),
+    );
+  });
+
+  it("warns when the scanners scanned different image versions", async () => {
+    location.hash = "#/image/python/docker";
+    const latest = [
+      scan("python", "docker", "trivy"),
+      { ...scan("python", "docker", "grype"), image_digest: "sha256:older" },
+    ];
+    data({ LATEST: latest });
+    const { unmount } = render(App);
+
+    expect(
+      await screen.findByText(/scanned different versions of the image/),
+    ).toBeInTheDocument();
+    unmount();
+
+    location.hash = "#/scanners/python";
+    render(App);
+    expect(await screen.findByText(/Not comparable/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Compare CVEs" }),
+    ).not.toBeInTheDocument();
   });
 
   it("filters the CVEs by severity", async () => {

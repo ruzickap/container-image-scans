@@ -15,6 +15,8 @@
     severityOf,
     shortDigest,
     withLatest,
+    barSeries,
+    sameImage,
       scannerName,
   } from "../lib/data";
   import {
@@ -24,6 +26,7 @@
     type Lifecycle,
     type Scan,
   } from "../lib/dynamodb";
+  import { loadHistory } from "../lib/history";
   import CveTable from "./CveTable.svelte";
   import DayPicker from "./DayPicker.svelte";
   import GroupChips from "./GroupChips.svelte";
@@ -57,39 +60,43 @@
   );
   let description = $derived(imageScans[0].image_description);
   let from = $derived(daysAgo(range));
-  // Daily scans of every scanner (oldest first) and the days with scans (newest first)
-  let history = $derived(
-    load<History>(`HISTORY#${group}`, [from, "~"]).then((items) => {
-      const all = withLatest(items, imageScans, from).filter(
-        (h) => h.vendor === vendor,
-      );
-      const perScanner = imageScans.map((scan) =>
-        daily(all.filter((h) => h.scanner === scan.scanner)),
-      );
-      const days = [
-        ...new Set(perScanner.flat().map((h) => day(h.scanned_at))),
-      ].sort();
-      return { perScanner, days: days.reverse() };
-    }),
-  );
+  // The inputs are parameters: a $derived tracks only what it reads before
+  // the first await - the image (group, vendor) comes from latest[0]
+  let history = $derived(historyOf(imageScans, from));
   // Scans of the shown day (the last of the day by every scanner) + their CVEs
   let shown = $derived(
-    scansOf(selectedDay).then((list) => ({
+    scansOf(imageScans, selectedDay).then((list) => ({
       scans: list,
       details: loadDetails(list),
     })),
   );
   let copied = $state(false);
 
-  async function scansOf(when?: string): Promise<History[]> {
-    if (!when) {
-      return imageScans;
-    }
-    const items = await load<History>(`HISTORY#${group}`, [when, `${when}~`]);
-    const all = withLatest(items, imageScans, when).filter(
-      (h) => h.vendor === vendor && day(h.scanned_at) === when,
+  // Daily scans of every scanner (oldest first) and the days with scans (newest first)
+  async function historyOf(latest: Scan[], since: string) {
+    const { group: g, vendor: v } = latest[0];
+    const all = (await loadHistory(g, since, latest)).filter(
+      (h) => h.vendor === v,
     );
-    return imageScans
+    const perScanner = latest.map((scan) =>
+      daily(all.filter((h) => h.scanner === scan.scanner)),
+    );
+    const days = [
+      ...new Set(perScanner.flat().map((h) => day(h.scanned_at))),
+    ].sort();
+    return { perScanner, days: days.reverse() };
+  }
+
+  async function scansOf(latest: Scan[], when?: string): Promise<History[]> {
+    if (!when) {
+      return latest;
+    }
+    const { group: g, vendor: v } = latest[0];
+    const items = await load<History>(`HISTORY#${g}`, [when, `${when}~`]);
+    const all = withLatest(items, latest, when).filter(
+      (h) => h.vendor === v && day(h.scanned_at) === when,
+    );
+    return latest
       .map((scan) => daily(all.filter((h) => h.scanner === scan.scanner)).pop())
       .filter((h): h is History => h !== undefined);
   }
@@ -103,7 +110,7 @@
       Promise.all(list.map((s) => load<Cve>(s.cves_pk))),
       Promise.all(
         list.map((s) =>
-          load<Lifecycle>(`LIFECYCLE#${group}#${vendor}#${s.scanner}`),
+          load<Lifecycle>(`LIFECYCLE#${s.group}#${s.vendor}#${s.scanner}`),
         ),
       ),
     ]);
@@ -226,6 +233,19 @@
         </dl>
       </article>
 
+      {#if !sameImage(list)}
+        <p class="card warning" role="status">
+          The scanners scanned different versions of the image (a scan
+          failed after the tag moved) - their CVEs are shown together:
+          {list
+            .map(
+              (scan) =>
+                `${scannerName(scan.scanner)} ${shortDigest(scan.image_digest)} (${formatDate(scan.scanned_at)})`,
+            )
+            .join(", ")}
+        </p>
+      {/if}
+
       <div class="grid scanners">
         {#each list as scan (scan.sk)}
           <article class="card">
@@ -254,17 +274,7 @@
             height={280}
             selected={day(list[0].scanned_at)}
             onselect={showDay}
-            series={imageScans.map((scan, i) => ({
-              name: scannerName(scan.scanner),
-              points: perScanner[i].map((d) => ({
-                label: d.scanned_at,
-                values: counts(d),
-                notes: [
-                  `digest ${shortDigest(d.image_digest)}`,
-                  `size ${formatBytes(d.image_size)}`,
-                ],
-              })),
-            }))}
+            series={barSeries(imageScans, perScanner)}
           />
         </article>
       {:catch error}
@@ -420,6 +430,12 @@
 
   .meta dd {
     margin: 0;
+  }
+
+  .warning {
+    margin: 0;
+    border-color: var(--medium);
+    color: var(--medium);
   }
 
   .scanners {

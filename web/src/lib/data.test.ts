@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  barSeries,
   byImage,
   counts,
   daily,
@@ -14,6 +15,7 @@ import {
   parseRoute,
   pinned,
   registryUrl,
+  sameImage,
   scannerName,
   withLatest,
 } from "./data";
@@ -171,6 +173,22 @@ describe("data", () => {
     expect(images[1].scans.map((s) => s.scanner)).toEqual(["grype", "trivy"]);
   });
 
+  it("makes one bar series per scanner with its daily scans", () => {
+    const scan = history("2026-11-20T00:00:00Z", 5);
+    expect(barSeries([scan], [[scan]])).toEqual([
+      {
+        name: "Trivy",
+        points: [
+          {
+            label: "2026-11-20T00:00:00Z",
+            values: counts(scan),
+            notes: ["digest 0", "size -"],
+          },
+        ],
+      },
+    ]);
+  });
+
   it("makes round axis ticks covering the maximum", () => {
     expect(niceTicks(0)).toEqual([0, 1]);
     expect(niceTicks(335)).toEqual([0, 100, 200, 300, 400]);
@@ -228,6 +246,31 @@ describe("data", () => {
     expect(firstSeen()).toBeUndefined();
   });
 
+  it("uses a finished lifecycle of a CVE found again, no fix from the future", () => {
+    const lifecycles = {
+      trivy: [
+        // Finished lifecycle (archived key) and the current one
+        {
+          ...lifecycle("CVE-1", {
+            first_seen: "2026-11-01",
+            removed_at: "2026-11-05",
+          }),
+          sk: "CVE-1#pkg#2026-11-05",
+        },
+        lifecycle("CVE-1", {
+          first_seen: "2026-11-20",
+          fix_seen: "2026-11-22",
+        }),
+      ],
+    };
+    const row = (at?: string) =>
+      mergeCves({ trivy: [cve("CVE-1", "LOW")] }, lifecycles, at)[0];
+    expect(row("2026-11-03").first_seen).toBe("2026-11-01");
+    expect(row("2026-11-21")).toMatchObject({ first_seen: "2026-11-20" });
+    expect(row("2026-11-21").fix_seen).toBeUndefined();
+    expect(row("2026-11-23").fix_seen).toBe("2026-11-22");
+  });
+
   it("links images to their registry pages", () => {
     expect(registryUrl("quay.io/hummingbird/nodejs:latest")).toBe(
       "https://quay.io/repository/hummingbird/nodejs?tab=tags&tag=latest",
@@ -255,6 +298,12 @@ describe("data", () => {
     );
     expect(registryUrl("localhost:5000/app")).toBeUndefined();
     expect(registryUrl("alpine:latest")).toBeUndefined();
+  });
+
+  it("knows when scans are of different image versions", () => {
+    const a = history("2026-11-20T00:00:00Z");
+    expect(sameImage([a, { ...a, scanner: "grype" }])).toBe(true);
+    expect(sameImage([a, { ...a, image_digest: "sha256:1" }])).toBe(false);
   });
 
   it("capitalizes scanner names", () => {

@@ -189,13 +189,17 @@ export function mergeCves(
   }
   for (const items of Object.values(lifecycles)) {
     for (const item of items) {
-      const row = rows.get(item.sk);
+      // By CVE + package: finished lifecycles have a longer sk
+      const row = rows.get(`${item.cve_id}#${item.package_name}`);
       const open =
         (!at || item.first_seen <= at) &&
         (!item.removed_at || (at !== undefined && item.removed_at > at));
       if (row && open) {
         row.first_seen = earliest(row.first_seen, item.first_seen);
-        row.fix_seen = earliest(row.fix_seen, item.fix_seen);
+        // A fix found after the scan was not known at that time
+        if (!at || (item.fix_seen ?? "") <= at) {
+          row.fix_seen = earliest(row.fix_seen, item.fix_seen);
+        }
       }
     }
   }
@@ -318,6 +322,27 @@ export function pinned(image: string, digest: string): string {
   return digest.startsWith("sha256:")
     ? `${image.replace(/:[^/:]*$/, "")}@${digest}`
     : image;
+}
+
+// Severity bar chart series: the daily scans (days[i]) of every scanner of an image
+export function barSeries(scans: History[], days: History[][]) {
+  return scans.map((scan, i) => ({
+    name: scannerName(scan.scanner),
+    points: days[i].map((d) => ({
+      label: d.scanned_at,
+      values: counts(d),
+      notes: [
+        `digest ${shortDigest(d.image_digest)}`,
+        `size ${formatBytes(d.image_size)}`,
+      ],
+    })),
+  }));
+}
+
+// The scans are of the same image version (one scanner can fail while the
+// rolling tag moves - its LATEST keeps the older digest)
+export function sameImage(scans: History[]): boolean {
+  return new Set(scans.map((s) => s.image_digest)).size <= 1;
 }
 
 // Display name of a scanner: "trivy" -> "Trivy"

@@ -10,11 +10,12 @@
     mergeCves,
     message,
     overlap,
-    withLatest,
+    sameImage,
     type Overlap,
       scannerName,
   } from "../lib/data";
-  import { load, type Cve, type History, type Scan } from "../lib/dynamodb";
+  import { load, type Cve, type Scan } from "../lib/dynamodb";
+  import { loadHistory } from "../lib/history";
   import GroupChips from "./GroupChips.svelte";
   import ImageLink from "./ImageLink.svelte";
   import LineChart from "./LineChart.svelte";
@@ -33,9 +34,7 @@
   let vendors = $derived([...new Set(groupScans.map((s) => s.vendor))]);
   let from = $derived(daysAgo(range));
   let history = $derived(
-    load<History>(`HISTORY#${group}`, [from, "~"]).then((items) =>
-      withLatest(items, groupScans, from),
-    ),
+    loadHistory(group, from, groupScans),
   );
   // CVEs found by all / only one scanner, loaded per image on request: a
   // CVE partition costs up to ~40 reads of the 2 per second of the table
@@ -48,6 +47,12 @@
       mergeCves(Object.fromEntries(list.map((s, i) => [s.scanner, cves[i]]))),
       list.map((s) => s.scanner),
     );
+  }
+
+  // Every scanner scanned the same image version
+  function comparable(vendor: string): boolean {
+    const list = groupScans.filter((s) => s.vendor === vendor);
+    return list.length === scanners.length && sameImage(list);
   }
 
   const scanOf = (vendor: string, scanner: string) =>
@@ -112,6 +117,11 @@
                     ></td
                   >
                 {/await}
+              {:else if !comparable(vendor)}
+                <td colspan={scanners.length + 2} class="num muted">
+                  Not comparable - a scan is missing or of another image
+                  version
+                </td>
               {:else}
                 <td colspan={scanners.length + 2} class="num">
                   <button

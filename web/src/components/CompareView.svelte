@@ -12,7 +12,7 @@
     href,
     message,
     shortDigest,
-    withLatest,
+    barSeries,
       scannerName,
   } from "../lib/data";
   import {
@@ -21,6 +21,7 @@
     type Lifecycle,
     type Scan,
   } from "../lib/dynamodb";
+  import { loadHistory } from "../lib/history";
   import GroupChips from "./GroupChips.svelte";
   import ImageLink from "./ImageLink.svelte";
   import LineChart from "./LineChart.svelte";
@@ -48,9 +49,7 @@
   let scanners = $derived([...new Set(scans.map((s) => s.scanner))].sort());
   let from = $derived(daysAgo(range));
   let history = $derived(
-    load<History>(`HISTORY#${group}`, [from, "~"]).then((items) =>
-      withLatest(items, groupScans, from),
-    ),
+    loadHistory(group, from, groupScans),
   );
   let lifecycles = $derived(
     Promise.all(
@@ -141,20 +140,7 @@
                   : 0}
                 <tr class:first={j === 0}>
                   {#if j === 0}
-                    <td rowspan={image.scans.length}>
-                      <a href={href("image", group, image.vendor)}>
-                        <i class="dot" style:background={color(i)}></i>{image.vendor}</a
-                      >
-                      <div class="mono muted"><ImageLink image={scan.image} /></div>
-                      <div class="muted small">
-                        {formatBytes(scan.image_size)} · created {formatDate(
-                          scan.image_created,
-                        )} ·
-                        <span class="mono" title={scan.image_digest}
-                          >{shortDigest(scan.image_digest)}</span
-                        >
-                      </div>
-                    </td>
+                    {@render imageCell(scan, image.scans.length, i)}
                   {/if}
                   <td>{scannerName(scan.scanner)}</td>
                   <td><SeverityCounts counts={counts(scan)} /></td>
@@ -189,17 +175,10 @@
             title="{image.vendor} CVEs by severity"
             {max}
             height={260}
-            series={image.scans.map((scan) => ({
-              name: scannerName(scan.scanner),
-              points: days(items, scan).map((d) => ({
-                label: d.scanned_at,
-                values: counts(d),
-                notes: [
-                  `digest ${shortDigest(d.image_digest)}`,
-                  `size ${formatBytes(d.image_size)}`,
-                ],
-              })),
-            }))}
+            series={barSeries(
+              image.scans,
+              image.scans.map((scan) => days(items, scan)),
+            )}
           />
         </article>
       {/each}
@@ -230,16 +209,12 @@
             </tr>
           </thead>
           <tbody>
-            {#each images as image (image.vendor)}
+            {#each images as image, i (image.vendor)}
               {#each image.scans as scan, j (scan.sk)}
                 {@const stats = fixStats(all.get(scan.sk) ?? [], scan.scanned_at)}
                 <tr class:first={j === 0}>
                   {#if j === 0}
-                    <td rowspan={image.scans.length}
-                      ><a href={href("image", group, image.vendor)}
-                        >{image.vendor}</a
-                      ></td
-                    >
+                    {@render imageCell(scan, image.scans.length, i)}
                   {/if}
                   <td>{scannerName(scan.scanner)}</td>
                   <td class="num">{stats.removed}</td>
@@ -263,6 +238,22 @@
     {/await}
   </article>
 </section>
+
+<!-- Image cell shared by the scanner rows of one image (rowspan) -->
+{#snippet imageCell(scan: Scan, rows: number, index: number)}
+  <td rowspan={rows}>
+    <a href={href("image", group, scan.vendor)}>
+      <i class="dot" style:background={color(index)}></i>{scan.vendor}</a
+    >
+    <div class="mono muted"><ImageLink image={scan.image} /></div>
+    <div class="muted small">
+      {formatBytes(scan.image_size)} · created {formatDate(scan.image_created)} ·
+      <span class="mono" title={scan.image_digest}
+        >{shortDigest(scan.image_digest)}</span
+      >
+    </div>
+  </td>
+{/snippet}
 
 <style>
   .dot {
