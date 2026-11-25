@@ -1,5 +1,4 @@
 :root {
-  color-scheme: dark;
   --bg: #0b0e14;
   --panel: #12161f;
   --panel-2: #181d29;
@@ -7,7 +6,6 @@
   --text: #e6e9f0;
   --muted: #8b93a7;
   --accent: #a78bfa;
-  --accent-2: #22d3ee;
   --good: #34d399;
   --bad: #f87171;
   --critical: #f85149;
@@ -16,7 +14,9 @@
   --low: #4f8ff7;
   --unknown: #8b98ad;
   --radius: 12px;
-  --mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, monospace;
+  --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", "Menlo", monospace;
+
+  color-scheme: dark;
   font-family:
     Inter,
     system-ui,
