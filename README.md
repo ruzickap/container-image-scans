@@ -168,7 +168,9 @@ the scan.
 - Each scan writes its CVEs to a new partition first, then its `HISTORY`
   item and overwrites its `LATEST` item, so the dashboard never shows a
   half-written scan. Then it compares the CVEs with the `LIFECYCLE`
-  partition and writes only new, newly fixable and removed CVEs
+  partition and writes only new, newly fixable and removed CVEs. A CVE
+  found again starts a new lifecycle, the finished one is kept with the
+  sort key `<CVE ID>#<package>#<removed_at>`
 - Every upload run first adds its day to `DAYS`
 - `HISTORY`, `LIFECYCLE` and `DAYS` exist since the dashboard redesign -
   older scans have only `LATEST` and `CVES` items

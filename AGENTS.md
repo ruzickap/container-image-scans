@@ -106,7 +106,8 @@ See [README.md](README.md#data-model). In short:
   the `HISTORY` and `LATEST` items
 - `pk = LIFECYCLE#<group>#<vendor>#<scanner>`, `sk = <CVE ID>#<package>` -
   `first_seen` / `fix_seen` / `removed_at` of every CVE of an image,
-  only changes are written (`lifecycle_items()`)
+  only changes are written (`lifecycle_items()`); a CVE found again
+  keeps the finished lifecycle as `sk = <CVE ID>#<package>#<removed_at>`
 - `pk = DAYS`, `sk = <YYYY-MM-DD>` - the days with an upload run
 - Every item has `expires_at` (TTL, two years)
 

@@ -321,6 +321,7 @@ def test_lifecycle_items() -> None:
     assert set(changed) == {
         "CVE-FIX#pkg",
         "CVE-BACK#pkg",
+        "CVE-BACK#pkg#D1",
         "CVE-NEW#pkg",
         "CVE-GONE#pkg",
     }
@@ -330,6 +331,9 @@ def test_lifecycle_items() -> None:
     assert changed["CVE-FIX#pkg"]["fixed_version"] == "1.1"
     assert changed["CVE-BACK#pkg"]["first_seen"] == "D2"
     assert "removed_at" not in changed["CVE-BACK#pkg"]
+    # The finished lifecycle is kept under its own key
+    assert changed["CVE-BACK#pkg#D1"]["first_seen"] == "D0"
+    assert changed["CVE-BACK#pkg#D1"]["removed_at"] == "D1"
     assert changed["CVE-NEW#pkg"] == {
         "pk": "LIFECYCLE#g#v#trivy",
         "sk": "CVE-NEW#pkg",

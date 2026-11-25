@@ -238,7 +238,8 @@ def lifecycle_items(
     ever found: first_seen (first scan with it), fix_seen (first scan with
     a fixed version) and removed_at (first scan without it). Only new and
     changed items are returned - most scans write none. A CVE found again
-    after its removal starts a new lifecycle.
+    after its removal starts a new lifecycle, the finished one is kept as
+    <CVE ID>#<package>#<removed_at>.
     """
     pk = f"LIFECYCLE#{latest['sk']}"
     scanned_at = latest["scanned_at"]
@@ -248,6 +249,14 @@ def lifecycle_items(
     changed: list[dict[str, Any]] = []
     for sk, cve in current.items():
         old = known.get(sk)
+        if old is not None and "removed_at" in old:
+            changed.append(
+                {
+                    **old,
+                    "sk": f"{sk}#{old['removed_at']}",
+                    "expires_at": expires_at,
+                }
+            )
         if old is None or "removed_at" in old:
             item = {
                 "pk": pk,
