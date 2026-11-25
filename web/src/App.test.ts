@@ -355,6 +355,29 @@ describe("App", () => {
     ]);
   });
 
+  it("shares one image cell between the scanner rows of an image", async () => {
+    location.hash = "#/compare/python";
+    data({
+      LATEST: [
+        scan("python", "docker", "grype"),
+        scan("python", "docker", "trivy"),
+      ],
+    });
+    render(App);
+
+    await screen.findByRole("heading", { name: "Latest scan" });
+    // Both tables: the image cell spans the Grype and Trivy rows
+    for (const table of screen.getAllByRole("table")) {
+      const [first, second] = within(table).getAllByRole("row").slice(1);
+      expect(within(first).getAllByRole("cell")[0]).toHaveAttribute(
+        "rowspan",
+        "2",
+      );
+      expect(within(first).getAllByRole("cell")[1]).toHaveTextContent("Grype");
+      expect(within(second).getAllByRole("cell")[0]).toHaveTextContent("Trivy");
+    }
+  });
+
   it("shows the fixable CVEs of an image when hovering it", async () => {
     const fix = {
       cve_id: "CVE-FIX",

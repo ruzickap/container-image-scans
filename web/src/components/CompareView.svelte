@@ -47,6 +47,16 @@
   // Images of the group with the latest scan of every scanner, fewest CVEs first
   let images = $derived(byImage(groupScans));
   let scanners = $derived([...new Set(scans.map((s) => s.scanner))].sort());
+  // Table rows: every scan, the first of an image gets the image cell (rowspan)
+  let rows = $derived(
+    images.flatMap((image, index) =>
+      image.scans.map((scan, j) => ({
+        scan,
+        index,
+        span: j ? 0 : image.scans.length,
+      })),
+    ),
+  );
   let from = $derived(daysAgo(range));
   let history = $derived(
     loadHistory(group, from, groupScans),
@@ -132,17 +142,12 @@
             </tr>
           </thead>
           <tbody>
-            {#each images as image, i (image.vendor)}
-              {#each image.scans as scan, j (scan.sk)}
-                {@const list = days(items, scan)}
-                {@const delta = list.length
-                  ? scan.cve_total - list[0].cve_total
-                  : 0}
-                <tr class:first={j === 0}>
-                  {#if j === 0}
-                    {@render imageCell(scan, image.scans.length, i)}
-                  {/if}
-                  <td>{scannerName(scan.scanner)}</td>
+            {#each rows as row (row.scan.sk)}
+              {@const scan = row.scan}
+              {@const list = days(items, scan)}
+              {@const delta = list.length ? scan.cve_total - list[0].cve_total : 0}
+              <tr class:first={row.span}>
+                {@render rowStart(row)}
                   <td><SeverityCounts counts={counts(scan)} /></td>
                   <td class="num"><b>{scan.cve_total}</b></td>
                   <td class="num">{scan.cve_fixable ?? "-"}</td>
@@ -154,7 +159,6 @@
                   >
                   <td>{formatDate(scan.scanned_at)}</td>
                 </tr>
-              {/each}
             {/each}
           </tbody>
         </table>
@@ -209,21 +213,19 @@
             </tr>
           </thead>
           <tbody>
-            {#each images as image, i (image.vendor)}
-              {#each image.scans as scan, j (scan.sk)}
-                {@const stats = fixStats(all.get(scan.sk) ?? [], scan.scanned_at)}
-                <tr class:first={j === 0}>
-                  {#if j === 0}
-                    {@render imageCell(scan, image.scans.length, i)}
-                  {/if}
-                  <td>{scannerName(scan.scanner)}</td>
+            {#each rows as row (row.scan.sk)}
+              {@const stats = fixStats(
+                all.get(row.scan.sk) ?? [],
+                row.scan.scanned_at,
+              )}
+              <tr class:first={row.span}>
+                {@render rowStart(row)}
                   <td class="num">{stats.removed}</td>
                   <td class="num">{fmt(stats.daysInImage)}</td>
                   <td class="num">{fmt(stats.daysToFix)}</td>
                   <td class="num">{stats.openFixable}</td>
                   <td class="num">{fmt(stats.longestWait)}</td>
                 </tr>
-              {/each}
             {/each}
           </tbody>
         </table>
@@ -240,19 +242,24 @@
 </section>
 
 <!-- Image cell shared by the scanner rows of one image (rowspan) -->
-{#snippet imageCell(scan: Scan, rows: number, index: number)}
-  <td rowspan={rows}>
-    <a href={href("image", group, scan.vendor)}>
-      <i class="dot" style:background={color(index)}></i>{scan.vendor}</a
-    >
-    <div class="mono muted"><ImageLink image={scan.image} /></div>
-    <div class="muted small">
-      {formatBytes(scan.image_size)} · created {formatDate(scan.image_created)} ·
-      <span class="mono" title={scan.image_digest}
-        >{shortDigest(scan.image_digest)}</span
+{#snippet rowStart({ scan, index, span }: (typeof rows)[number])}
+  {#if span}
+    <td rowspan={span}>
+      <a href={href("image", group, scan.vendor)}>
+        <i class="dot" style:background={color(index)}></i>{scan.vendor}</a
       >
-    </div>
-  </td>
+      <div class="mono muted"><ImageLink image={scan.image} /></div>
+      <div class="muted small">
+        {formatBytes(scan.image_size)} · created {formatDate(
+          scan.image_created,
+        )} ·
+        <span class="mono" title={scan.image_digest}
+          >{shortDigest(scan.image_digest)}</span
+        >
+      </div>
+    </td>
+  {/if}
+  <td>{scannerName(scan.scanner)}</td>
 {/snippet}
 
 <style>
