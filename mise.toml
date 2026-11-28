@@ -2,7 +2,7 @@
 bun = "1.4.5"
 grype = "0.122.1"
 trivy = "0.76.2"
-uv = "0.13.9"
+uv = "0.13.10"
 
 # ── Scanner tasks (Python via uv, scripts/scan_and_upload.py) ───
 
